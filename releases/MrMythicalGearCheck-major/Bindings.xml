@@ -1,6 +1,0 @@
-<Bindings>
-    <Binding name="Toggle Gear Check UI" category="Mr. Mythical">
-        MrMythical.GearCheck:Toggle();
-    </Binding>
-</Bindings>
-
