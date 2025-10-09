@@ -1,4 +1,4 @@
-## Interface: 110200, 110205
+## Interface: 110205
 ## Title: Mr. Mythical: Gear Check
 ## Notes: Comprehensive gear validation tool for Mythic+ groups with detailed inspection and issue detection.
 ## Version: @project-version@
