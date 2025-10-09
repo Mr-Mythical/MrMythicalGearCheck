@@ -1,0 +1,23 @@
+## Interface: 110200, 110205
+## Title: Mr. Mythical: Gear Check
+## Notes: 
+## Version: @project-version@
+## Author: Braunerr
+## IconTexture: Interface\AddOns\MrMythicalGearCheck\Logo.tga
+## X-Curse-Project-ID: 1361743
+## X-Wago-ID: TBD
+## SavedVariables: MrMythicalGearCheckDB
+
+
+Data/ConfigData.lua
+Data/GearData.lua
+Data/EnchantData.lua
+Data/GemData.lua
+Utils/UIHelpers.lua
+Utils/TooltipUtils.lua
+Utils/GearUtils.lua
+Utils/InspectionUtils.lua
+Utils/CommandHandlers.lua
+Options.lua
+UnifiedUI.lua
+Core.lua
