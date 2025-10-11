@@ -7,10 +7,6 @@ function CommandHandlers.handleOpenCommand()
         unifiedUI:Show()
         return
     end
-
-    if MrMythicalGearCheck.DebugPrint then
-        MrMythicalGearCheck.DebugPrint("Unified UI not available yet.")
-    end
 end
 
 -- Export the module

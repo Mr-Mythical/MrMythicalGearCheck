@@ -68,14 +68,12 @@ function InspectionUtils:AddGroupToScanQueue()
         end
     end
     
-    self:SendMessage("Added " .. added .. " group members to scan queue")
     return added
 end
 
 --- Clears the scan queue
 function InspectionUtils:ClearScanQueue()
     scanQueue = {}
-    self:SendMessage("Scan queue cleared")
 end
 
 --- Removes a player from the scan queue
@@ -97,7 +95,6 @@ end
 --- @param clearPrevious boolean Optional - if true, clears previous results before scanning
 function InspectionUtils:ScanQueuedPlayers(callback, progressCallback, clearPrevious)
     if #scanQueue == 0 then
-        self:SendMessage("Scan queue is empty")
         if callback then callback({}) end
         return
     end
@@ -106,7 +103,6 @@ function InspectionUtils:ScanQueuedPlayers(callback, progressCallback, clearPrev
     
     -- Check if we're in combat
     if InCombatLockdown() then
-        self:SendMessage("Cannot perform scan while in combat.")
         if callback then callback({}) end
         return
     end
@@ -116,7 +112,6 @@ function InspectionUtils:ScanQueuedPlayers(callback, progressCallback, clearPrev
     local cooldownTime = 5.0
     if lastInspectionTime and (currentTime - lastInspectionTime) < cooldownTime then
         local remainingTime = cooldownTime - (currentTime - lastInspectionTime)
-        self:SendMessage(string.format("Please wait %.1f seconds before scanning again.", remainingTime))
         if callback then callback({}) end
         return
     end
@@ -144,8 +139,6 @@ function InspectionUtils:ScanQueuedPlayers(callback, progressCallback, clearPrev
         end
     end
     
-    self:SendMessage("Starting scan of " .. #self.inspectionQueue .. " queued players...")
-    
     -- Start scanning
     self:StartNextInspection(false)
 end
@@ -160,7 +153,6 @@ function InspectionUtils:InspectGroup(callback, progressCallback, clearPrevious)
     local added = self:AddGroupToScanQueue()
     
     if added == 0 then
-        self:SendMessage("No group members found to inspect.")
         if callback then callback({}) end
         return
     end
@@ -284,7 +276,6 @@ function InspectionUtils:StartNextInspection(isRescan)
 
         local failedCount = totalCount - successfulCount
         local operationName = isRescan and "Rescan" or "Inspection"
-        self:SendMessage(operationName .. " completed: " .. successfulCount .. "/" .. totalCount .. " members analyzed.")
 
         -- Clear any pending inspections and close inspect window
         self:ClearInspectionState()
@@ -542,23 +533,6 @@ function InspectionUtils:GetGroupMembers()
     
     return members
 end
-
---- Sends a message to chat or UI
---- @param message string Message to send
-function InspectionUtils:SendMessage(message)
-    if not message or message == "" then
-        return
-    end
-
-    local chatFrame = rawget(_G, "DEFAULT_CHAT_FRAME")
-    if chatFrame and chatFrame.AddMessage then
-        chatFrame:AddMessage("|cff69ccf0[MrMythicalGearCheck]|r " .. message)
-    elseif MrMythicalGearCheck.DebugPrint then
-        MrMythicalGearCheck.DebugPrint(message)
-    end
-end
-
-
 
 --- Creates a brief summary for an inspected player
 --- @param unit string Unit ID
