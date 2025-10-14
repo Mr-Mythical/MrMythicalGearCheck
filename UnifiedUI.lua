@@ -43,16 +43,19 @@ function UIContentCreators.updateMemberFramesWithResults(uiElements, memberRepor
         
         if result and result.hasData then
             -- Show success status
+            memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-CheckBox-Check")
             memberFrame.statusIcon:SetVertexColor(0, 1, 0, 1) -- Green for success
             memberFrame.statusText:SetText(result.summary or "Complete")
             memberFrame.statusText:SetTextColor(0, 1, 0, 1)
         elseif result then
             -- Show failed status
+            memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-StopButton")
             memberFrame.statusIcon:SetVertexColor(1, 0, 0, 1) -- Red for failed
             memberFrame.statusText:SetText(result.summary or "Failed")
             memberFrame.statusText:SetTextColor(1, 0, 0, 1)
         else
             -- No previous data for this member
+            memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-MinusButton-Up")
             memberFrame.statusIcon:SetVertexColor(0.5, 0.5, 0.5, 1) -- Gray for not scanned
             memberFrame.statusText:SetText("Not scanned")
             memberFrame.statusText:SetTextColor(0.7, 0.7, 0.7, 1)
@@ -229,7 +232,7 @@ function UIContentCreators.createMemberDisplayFrame(parent, unit, index, yOffset
     local statusIcon = frame:CreateTexture(nil, "OVERLAY")
     statusIcon:SetSize(16, 16)
     statusIcon:SetPoint("RIGHT", frame, "RIGHT", -5, 0)
-    statusIcon:SetTexture("Interface/Buttons/UI-CheckBox-Check")
+    statusIcon:SetTexture("Interface/Buttons/UI-MinusButton-Up")
     statusIcon:SetVertexColor(0.5, 0.5, 0.5, 1) -- Gray for not scanned
     
     -- Status text
@@ -250,14 +253,17 @@ function UIContentCreators.updateMemberStatus(uiElements, unit, status, resultTe
     for _, memberFrame in ipairs(uiElements.memberFrames) do
         if memberFrame.unit == unit then
             if status == "scanning" then
+                memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-RefreshButton")
                 memberFrame.statusIcon:SetVertexColor(1, 0.8, 0, 1) -- Yellow for scanning
                 memberFrame.statusText:SetText("Scanning...")
                 memberFrame.statusText:SetTextColor(1, 0.8, 0, 1)
             elseif status == "success" then
+                memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-CheckBox-Check")
                 memberFrame.statusIcon:SetVertexColor(0, 1, 0, 1) -- Green for success
                 memberFrame.statusText:SetText(resultText or "Complete")
                 memberFrame.statusText:SetTextColor(0, 1, 0, 1)
             elseif status == "failed" then
+                memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-StopButton")
                 memberFrame.statusIcon:SetVertexColor(1, 0, 0, 1) -- Red for failed
                 memberFrame.statusText:SetText(resultText or "Failed")
                 memberFrame.statusText:SetTextColor(1, 0, 0, 1)
@@ -750,6 +756,7 @@ function UIContentCreators.startGroupScan(uiElements)
     
     -- Reset member frames to "Not scanned" status
     for _, memberFrame in ipairs(uiElements.memberFrames) do
+        memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-MinusButton-Up")
         memberFrame.statusIcon:SetVertexColor(0.5, 0.5, 0.5, 1) -- Gray for not scanned
         memberFrame.statusText:SetText("Not scanned")
         memberFrame.statusText:SetTextColor(0.7, 0.7, 0.7, 1)
