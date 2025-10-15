@@ -11,19 +11,16 @@ MrMythicalGearCheck.GearUtils = {}
 
 local GearUtils = MrMythicalGearCheck.GearUtils
 
--- Dependency injection helper
 local function getDependency(name)
     return (_G.MrMythicalGearCheck and _G.MrMythicalGearCheck[name]) or MrMythicalGearCheck[name]
 end
 
--- Helper function to check if class is Death Knight (single source of truth)
 local function isDeathKnight(playerClass)
     if not playerClass then return false end
     local upperClass = string.upper(playerClass)
     return upperClass == "DEATHKNIGHT" or upperClass == "DEATH KNIGHT" or playerClass == "Death Knight"
 end
 
--- Issue types
 local ISSUE_TYPES = {
     MISSING_ENCHANT = "MISSING_ENCHANT",
     LOW_RANK_ENCHANT = "LOW_RANK_ENCHANT",
@@ -162,7 +159,7 @@ local EnchantValidationRule = {
 
 --- Gem validation rule
 local GemValidationRule = {
-    appliesTo = function(self, itemAnalysis, slotId, playerClass)
+    appliesTo = function(self, slotId)
         local config = getDependency("ConfigData")
         return config and config.CONSTANTS and config.CONSTANTS.GEMABLE_SLOTS and
             config.CONSTANTS.GEMABLE_SLOTS[slotId]
@@ -195,7 +192,6 @@ local GemValidationRule = {
                     })
                 end
 
-                -- Check for gem warnings (basic gems that should be upgraded)
                 if gem.warning then
                     table.insert(issues, {
                         type = ISSUE_TYPES.SUBOPTIMAL_GEM,
@@ -213,7 +209,7 @@ local GemValidationRule = {
 
 --- Durability validation rule (global state tracking to show message only once)
 local DurabilityValidationRule = {
-    appliesTo = function(self, itemAnalysis, slotId, playerClass)
+    appliesTo = function(self, itemAnalysis)
         return itemAnalysis and itemAnalysis.durability ~= nil -- Apply to any item with durability info
     end,
 
@@ -236,7 +232,7 @@ local DurabilityValidationRule = {
 
 --- Special cloak validation rule (extensible for special item types)
 local SpecialCloakValidationRule = {
-    appliesTo = function(self, itemAnalysis, slotId, playerClass)
+    appliesTo = function(self, itemAnalysis, slotId)
         local config = getDependency("ConfigData")
         local cloakSlot = (config and config.CONSTANTS and config.CONSTANTS.SLOT_IDS and config.CONSTANTS.SLOT_IDS.CLOAK) or 15
         return slotId == cloakSlot and itemAnalysis.itemLink -- Cloak slot
@@ -297,7 +293,7 @@ local SpecialCloakValidationRule = {
 
 --- Empty slot validation rule 
 local EmptySlotValidationRule = {
-    appliesTo = function(self, itemAnalysis, slotId, playerClass)
+    appliesTo = function(self, itemAnalysis, slotId)
         -- Apply to empty slots, but skip off-hand as it's often intentionally empty
         local config = getDependency("ConfigData")
         local offHandSlot = (config and config.CONSTANTS and config.CONSTANTS.SLOT_IDS and config.CONSTANTS.SLOT_IDS.OFF_HAND) or 17
@@ -316,7 +312,7 @@ local EmptySlotValidationRule = {
 
 --- Missing socket validation rule for regular slots (not special cloak)
 local MissingSocketValidationRule = {
-    appliesTo = function(self, itemAnalysis, slotId, playerClass)
+    appliesTo = function(self, itemAnalysis, slotId)
         local config = getDependency("ConfigData")
         -- Apply to all slots except special cloak that have expected sockets
         local cloakSlot = (config and config.CONSTANTS and config.CONSTANTS.SLOT_IDS and config.CONSTANTS.SLOT_IDS.CLOAK) or 15
