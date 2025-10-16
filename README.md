@@ -1,6 +1,6 @@
 # Mr. Mythical: Gear Check
 
-> **Comprehensive gear validation tool for Mythic+ groups with detailed inspection and issue detection.**
+> **Comprehensive gear validation tool for Mythic+ and Raid groups with detailed inspection and issue detection.**
 
 ## What Does This Addon Do?
 

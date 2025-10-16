@@ -1,6 +1,6 @@
 ## Interface: 110205
 ## Title: Mr. Mythical: Gear Check
-## Notes: Comprehensive gear validation tool for Mythic+ groups with detailed inspection and issue detection.
+## Notes: Quickly inspect your group's gear to identify common preparation issues like missing enchants, empty gem sockets, and low durability items before starting challenging content.
 ## Version: @project-version@
 ## Author: Braunerr
 ## IconTexture: Interface\AddOns\MrMythicalGearCheck\Logo.tga
