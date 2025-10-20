@@ -5,23 +5,6 @@ This module handles the creation and management of the settings panel for the
 Mr. Mythical Gear Check addon. It uses a global registry pattern to coordinate
 with other Mr. Mythical addons to avoid duplicate category creation.
 
-Global Registry Pattern:
-- Uses _G.MrMythicalSettingsRegistry to coordinate between sibling addons
-- Prevents duplicate "Mr. Mythical" parent categories
-- Allows any addon to create the parent category first
-- Other addons create their own subcategories under the shared parent
-
-Sibling Integration:
-Mr. Mythical addons are siblings and follow the same pattern:
-1. Check if _G.MrMythicalSettingsRegistry.parentCategory exists
-2. If not, create the parent category and store it in the registry
-3. If yes, use the existing parent category
-4. Create own subcategory under the parent
-5. Always mark registry.createdBy to track which addon created the parent
-
-This ensures a clean "Mr. Mythical" -> "Keystone Tooltips"/"Leaderboard"/"Gear Check" hierarchy 
-regardless of addon load order.
-
 Author: Braunerr
 --]]
 

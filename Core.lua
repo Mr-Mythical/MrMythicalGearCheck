@@ -28,7 +28,6 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
         local addonName = ...
         if addonName == "MrMythicalGearCheck" then
-            -- Delay the options initialization slightly to ensure Settings API is ready
             if MrMythicalGearCheck.Options then
                 MrMythicalGearCheck.Options.initializeSettings()
             end
