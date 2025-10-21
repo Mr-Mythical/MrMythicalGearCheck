@@ -80,8 +80,7 @@ function Options.initializeSettings()
         MIN_ENCHANT_RANK = 3,
         REQUIRE_PREMIUM_ENCHANTS = false,
         MIN_GEM_RANK = 3,
-        EXCLUDE_OPTIONAL_GEM_SLOTS = true,
-        enabled = true
+        EXCLUDE_OPTIONAL_GEM_SLOTS = true
     }
 
     MrMythicalGearCheckDB = MrMythicalGearCheckDB or {}
@@ -123,23 +122,6 @@ function Options.createSettingsPanel()
     registry.subCategories["GearCheck"] = category
     
     local layout = SettingsPanel:GetLayout(category)
-
-    -- General Settings Header
-    local generalHeaderData = {
-        name = "General Settings",
-        tooltip = "Main gear check functionality settings"
-    }
-    local generalHeaderInitializer = Settings.CreateElementInitializer("SettingsListSectionHeaderTemplate", generalHeaderData)
-    layout:AddInitializer(generalHeaderInitializer)
-
-    -- Enable/Disable addon
-    createSetting(
-        category,
-        "Enable Gear Check",
-        "enabled",
-        true,
-        "Enable or disable the Mr. Mythical Gear Check addon functionality."
-    )
 
     -- Detection Settings Header
     local detectionHeaderData = {
