@@ -146,8 +146,7 @@ function Options.createSettingsPanel()
         "Set the minimum required enchant quality rank for gear validation.\n\n" ..
         "|cffffffffRank 1:|r Basic quality enchants (Tier 1)\n" ..
         "|cffffffffRank 2:|r Medium quality enchants (Tier 2)\n" ..
-        "|cffffffffRank 3:|r High quality enchants (Tier 3)\n\n" ..
-        "|cffffffffRecommended:|r Rank 3 for competitive content, Rank 2 for casual play.",
+        "|cffffffffRank 3:|r High quality enchants (Tier 3)",
         enchantRankOptions,
         "number"
     )
@@ -159,8 +158,7 @@ function Options.createSettingsPanel()
         "REQUIRE_PREMIUM_ENCHANTS",
         false,
         "When enabled, requires high quality enchant materials (e.g., 'Radiant' instead of 'Glimmering' for rings, 'Chant' instead of 'Whisper' for wrist/cloak).\n\n" ..
-        "|cffffffffHigh quality materials:|r Provide the same stats but cost more to craft.\n" ..
-        "|cffffffffRecommended:|r Enable for high-end mythic content, disable for casual play."
+        "|cffffffffHigh quality materials:|r Provide the same stats but cost more to craft."
     )
 
     -- Minimum gem rank dropdown
@@ -178,8 +176,7 @@ function Options.createSettingsPanel()
         "Set the minimum required gem quality rank for gear validation.\n\n" ..
         "|cffffffffRank 1:|r Basic quality gems (Tier 1)\n" ..
         "|cffffffffRank 2:|r Medium quality gems (Tier 2)\n" ..
-        "|cffffffffRank 3:|r High quality gems (Tier 3)\n\n" ..
-        "|cffffffffRecommended:|r Rank 3 for competitive content, Rank 2 for casual play.",
+        "|cffffffffRank 3:|r High quality gems (Tier 3)",
         gemRankOptions,
         "number"
     )
