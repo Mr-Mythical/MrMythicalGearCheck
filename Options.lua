@@ -157,8 +157,7 @@ function Options.createSettingsPanel()
         "Require High Quality Enchant Materials",
         "REQUIRE_PREMIUM_ENCHANTS",
         false,
-        "When enabled, requires high quality enchant materials (e.g., 'Radiant' instead of 'Glimmering' for rings, 'Chant' instead of 'Whisper' for wrist/cloak).\n\n" ..
-        "|cffffffffHigh quality materials:|r Provide the same stats but cost more to craft."
+        "When enabled, requires high quality enchant materials (e.g., 'Radiant' instead of 'Glimmering' for rings, 'Chant' instead of 'Whisper' for wrist/cloak)."
     )
 
     -- Minimum gem rank dropdown
