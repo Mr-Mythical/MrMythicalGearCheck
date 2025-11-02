@@ -96,7 +96,7 @@ ConfigData.CONSTANTS = {
     SPECIAL_CLOAK_ITEM_ID = 235499, -- Cloak that can have gem sockets
     
     -- Gem parsing configuration
-    GEM_SLOT_POSITIONS = {3, 4, 5, 6}, -- Positions in item string where gems are stored
+    GEM_SLOT_POSITIONS = {3, 4}, -- Positions in item string where gems are stored (only 2 gems max in current gear)
     
     -- Pure cloak gems (preferred versions)
     PURE_GEMS = {

@@ -701,8 +701,12 @@ function GearUtils:GetItemGems(itemLink)
     local parts = { strsplit(":", itemString) }
 
     local config = getDependency("ConfigData")
-    local gemPositions = (config and config.CONSTANTS and config.CONSTANTS.GEM_SLOT_POSITIONS) or { 3, 4, 5, 6 }
+    local gemPositions = config and config.CONSTANTS and config.CONSTANTS.GEM_SLOT_POSITIONS
     local gemData = getDependency("GemData")
+    
+    if not gemPositions then
+        return {}
+    end
 
     for socketIndex, position in ipairs(gemPositions) do
         local gemID = tonumber(parts[position])
@@ -811,11 +815,13 @@ function GearUtils:GetItemSockets(itemLink, slotId)
 
         -- Check gem positions from config
         local config = getDependency("ConfigData")
-        local gemPositions = (config and config.CONSTANTS and config.CONSTANTS.GEM_SLOT_POSITIONS) or { 3, 4, 5, 6 }
-        for _, position in ipairs(gemPositions) do
-            local gemID = tonumber(parts[position])
-            if gemID and gemID > 0 then
-                filledSockets = filledSockets + 1
+        local gemPositions = config and config.CONSTANTS and config.CONSTANTS.GEM_SLOT_POSITIONS
+        if gemPositions then
+            for _, position in ipairs(gemPositions) do
+                local gemID = tonumber(parts[position])
+                if gemID and gemID > 0 then
+                    filledSockets = filledSockets + 1
+                end
             end
         end
     end
@@ -823,7 +829,7 @@ function GearUtils:GetItemSockets(itemLink, slotId)
     -- Also try C_Item.GetItemGem to cross-check (may not work for inspected units)
     local gemFromAPI = 0
     if C_Item and C_Item.GetItemGem then
-        for i = 1, 3 do
+        for i = 1, 2 do  -- Only check for 2 gems since all current gear can only have 2 gems max
             local gemName, gemLink = C_Item.GetItemGem(itemLink, i)
             if gemName and gemName ~= "" then
                 gemFromAPI = gemFromAPI + 1
