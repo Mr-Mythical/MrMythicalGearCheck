@@ -70,13 +70,6 @@ end
 --- Initialize the addon settings panel
 function Options.initializeSettings()
     local defaults = {
-        SHOW_ENCHANT_STATUS = true,
-        SHOW_GEM_STATUS = true,
-        SHOW_GROUP_GEAR = true,
-        NOTIFY_MISSING_ENCHANTS = true,
-        NOTIFY_MISSING_GEMS = true,
-        INSPECT_DELAY = 2,
-
         MIN_ENCHANT_RANK = 3,
         REQUIRE_PREMIUM_ENCHANTS = false,
         MIN_GEM_RANK = 3,
