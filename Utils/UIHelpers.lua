@@ -1,7 +1,8 @@
 --[[
-UIHelpers.lua - User Interface Helper Functions
+UIHelpers.lua - Mr. Mythical Gear Check UI Helper Functions
 
 Purpose: Reusable UI creation and management functions
+Dependencies: None
 Author: Braunerr
 --]]
 

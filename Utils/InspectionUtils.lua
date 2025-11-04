@@ -1,5 +1,5 @@
 --[[
-InspectionUtils.lua - Mr. Mythical Gear Optimizer Inspection Utilities
+InspectionUtils.lua - Mr. Mythical Gear Check Inspection Utilities
 
 Purpose: Utilities for group inspection and gear checking
 Dependencies: GearUtils, ConfigData

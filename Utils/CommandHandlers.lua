@@ -1,3 +1,11 @@
+--[[
+CommandHandlers.lua - Mr. Mythical Gear Check Command Handlers
+
+Purpose: Handlers for slash commands and user interface commands
+Dependencies: UnifiedUI
+Author: Braunerr
+--]]
+
 local CommandHandlers = {}
 
 function CommandHandlers.handleOpenCommand()

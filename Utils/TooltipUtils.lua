@@ -1,8 +1,10 @@
---- TooltipUtils.lua - Tooltip scanning utilities for Mr. Mythical Gear Check
----
---- Purpose: Functions for scanning item tooltips for various information
---- Dependencies: None
---- Author: Braunerr
+--[[
+TooltipUtils.lua - Mr. Mythical Gear Check Tooltip Utilities
+
+Purpose: Functions for scanning item tooltips for various information
+Dependencies: None
+Author: Braunerr
+--]]
 
 local MrMythicalGearCheck = MrMythicalGearCheck or {}
 MrMythicalGearCheck.TooltipUtils = {}
