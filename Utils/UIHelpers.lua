@@ -29,9 +29,6 @@ UIHelpers.UI_CONSTANTS = {
     COLORS = {
         EVEN_ROW = {r = 0.1, g = 0.1, b = 0.1, a = 0.3},
         ODD_ROW = {r = 0.15, g = 0.15, b = 0.15, a = 0.3},
-        SUCCESS_HIGH = {r = 0, g = 1, b = 0},
-        SUCCESS_MEDIUM = {r = 1, g = 1, b = 0},
-        SUCCESS_LOW = {r = 1, g = 0, b = 0},
         DISABLED = {r = 0.5, g = 0.5, b = 0.5},
         INFO_TEXT = {r = 0.8, g = 0.8, b = 0.8},
         NAV_BACKGROUND = {r = 0.1, g = 0.1, b = 0.1, a = 0.8}
