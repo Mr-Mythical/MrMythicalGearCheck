@@ -32,12 +32,6 @@ UIHelpers.UI_CONSTANTS = {
         DISABLED = {r = 0.5, g = 0.5, b = 0.5},
         INFO_TEXT = {r = 0.8, g = 0.8, b = 0.8},
         NAV_BACKGROUND = {r = 0.1, g = 0.1, b = 0.1, a = 0.8}
-    },
-    CONTENT_TYPES = {
-        DASHBOARD = "dashboard",
-        PERSONAL_GEAR = "personal_gear",
-        GROUP_VALIDATION = "group_validation", 
-        SETTINGS = "settings"
     }
 }
 

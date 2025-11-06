@@ -1137,10 +1137,10 @@ function NavigationManager.getButtonData()
     if not NavigationManager.BUTTON_DATA then
         local UI_CONSTANTS = getUIConstants()
         NavigationManager.BUTTON_DATA = {
-            {id = UI_CONSTANTS.CONTENT_TYPES.DASHBOARD, text = "Dashboard", y = -UI_CONSTANTS.LAYOUT.LARGE_PADDING},
-            {id = UI_CONSTANTS.CONTENT_TYPES.PERSONAL_GEAR, text = "Personal Gear", y = -60},
-            {id = UI_CONSTANTS.CONTENT_TYPES.GROUP_VALIDATION, text = "Group Check", y = -100},
-            {id = UI_CONSTANTS.CONTENT_TYPES.SETTINGS, text = "Settings", y = -140}
+            {id = "dashboard", text = "Dashboard", y = -UI_CONSTANTS.LAYOUT.LARGE_PADDING},
+            {id = "personal_gear", text = "Personal Gear", y = -60},
+            {id = "group_validation", text = "Group Check", y = -100},
+            {id = "settings", text = "Settings", y = -140}
         }
     end
     return NavigationManager.BUTTON_DATA
@@ -1154,7 +1154,7 @@ function NavigationManager.createButtons(navPanel, contentFrame)
         local button = NavigationManager.createNavigationButton(navPanel, buttonInfo, contentFrame, navButtons)
         navButtons[buttonInfo.id] = button
         
-        if buttonInfo.id == UI_CONSTANTS.CONTENT_TYPES.DASHBOARD then
+        if buttonInfo.id == "dashboard" then
             button:SetNormalFontObject("GameFontHighlight")
         end
     end
@@ -1180,7 +1180,7 @@ end
 function NavigationManager.handleButtonClick(buttonInfo, button, navButtons, contentFrame)
     local UI_CONSTANTS = getUIConstants()
     
-    if buttonInfo.id == UI_CONSTANTS.CONTENT_TYPES.SETTINGS then
+    if buttonInfo.id == "settings" then
         MainFrameManager.openSettings()
         return
     end
@@ -1269,7 +1269,7 @@ local function initializeUI()
     
     -- Initialize default content
     if UI_CONSTANTS then
-        NavigationManager.showContent(UI_CONSTANTS.CONTENT_TYPES.DASHBOARD, contentFrame)
+        NavigationManager.showContent("dashboard", contentFrame)
     end
 end
 
@@ -1286,13 +1286,13 @@ function UnifiedUI:Show(contentType)
     
     self.unifiedFrame:Show()
     
-    if contentType and contentType ~= UI_CONSTANTS.CONTENT_TYPES.DASHBOARD then
+    if contentType and contentType ~= "dashboard" then
         NavigationManager.showContent(contentType, self.contentFrame)
         if self.navButtons and self.navButtons[contentType] then
             NavigationManager.updateButtonStates(self.navButtons[contentType], self.navButtons)
         end
     else
-        NavigationManager.showContent(UI_CONSTANTS.CONTENT_TYPES.DASHBOARD, self.contentFrame)
+        NavigationManager.showContent("dashboard", self.contentFrame)
     end
 end
 
