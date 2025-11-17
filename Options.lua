@@ -9,7 +9,6 @@ Author: Braunerr
 --]]
 
 _G.MrMythicalGearCheck = _G.MrMythicalGearCheck or {}
-local ConfigData = _G.MrMythicalGearCheck.ConfigData
 
 local Options = {}
 

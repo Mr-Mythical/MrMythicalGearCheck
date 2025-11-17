@@ -11,20 +11,6 @@ MrMythicalGearCheck.ConfigData = {}
 
 local ConfigData = MrMythicalGearCheck.ConfigData
 
---- Default saved variables for the addon
-ConfigData.DEFAULTS = {
-    -- Quality Requirements
-    MIN_ENCHANT_RANK = 3, -- Require rank 3 enchants by default
-    REQUIRE_PREMIUM_ENCHANTS = true, -- Require high quality materials by default
-    MIN_GEM_RANK = 3,     -- Require rank 3 gems by default
-    
-    -- Durability Settings
-    LOW_DURABILITY_THRESHOLD = 50, -- Percentage below which durability is considered low
-    
-    -- Gem Checking Options
-    EXCLUDE_OPTIONAL_GEM_SLOTS = true, -- Don't count head/wrist/belt as missing gems
-}
-
 --- Configuration constants for gear validation
 ConfigData.CONSTANTS = {
     -- Equipment slot IDs (single source of truth)
