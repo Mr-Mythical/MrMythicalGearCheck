@@ -101,25 +101,30 @@ ConfigData.CONSTANTS = {
     }
 }
 
+--- Helper to get defaults from Options module
+local function getDefaults()
+    return (MrMythicalGearCheck.Options and MrMythicalGearCheck.Options.DEFAULTS) or {}
+end
+
 --- Gets the user's preferred minimum enchant rank setting
 --- @return number Minimum enchant rank (1-3, defaults to 3)
 function ConfigData:GetMinEnchantRank()
     local db = MrMythicalGearCheckDB or {}
-    return db.MIN_ENCHANT_RANK or self.DEFAULTS.MIN_ENCHANT_RANK or 3
+    return db.MIN_ENCHANT_RANK or getDefaults().MIN_ENCHANT_RANK or 3
 end
 
 --- Gets whether high quality enchant materials are required
 --- @return boolean Whether to require high quality materials (defaults to false)
 function ConfigData:RequirePremiumEnchants()
     local db = MrMythicalGearCheckDB or {}
-    return db.REQUIRE_PREMIUM_ENCHANTS or self.DEFAULTS.REQUIRE_PREMIUM_ENCHANTS or false
+    return db.REQUIRE_PREMIUM_ENCHANTS or getDefaults().REQUIRE_PREMIUM_ENCHANTS or false
 end
 
 --- Gets the minimum gem rank requirement
 --- @return number Minimum gem rank (defaults to 3)
 function ConfigData:GetMinGemRank()
     local db = MrMythicalGearCheckDB or {}
-    return db.MIN_GEM_RANK or self.DEFAULTS.MIN_GEM_RANK or 3
+    return db.MIN_GEM_RANK or getDefaults().MIN_GEM_RANK or 3
 end
 
 --- Checks if optional gem slots (head/wrist/belt) should be excluded from missing gem count
@@ -134,7 +139,8 @@ function ConfigData:ShouldExcludeOptionalGemSlots()
     end
     
     -- Otherwise, use the default
-    local result = self.DEFAULTS.EXCLUDE_OPTIONAL_GEM_SLOTS
+    local result = getDefaults().EXCLUDE_OPTIONAL_GEM_SLOTS
+    if result == nil then result = true end
     return result
 end
 
@@ -142,7 +148,7 @@ end
 --- @return number Percentage below which durability is considered low (defaults to 50)
 function ConfigData:GetLowDurabilityThreshold()
     local db = MrMythicalGearCheckDB or {}
-    return db.LOW_DURABILITY_THRESHOLD or self.DEFAULTS.LOW_DURABILITY_THRESHOLD or 50
+    return db.LOW_DURABILITY_THRESHOLD or getDefaults().LOW_DURABILITY_THRESHOLD or 50
 end
 
 -- Ensure global access
