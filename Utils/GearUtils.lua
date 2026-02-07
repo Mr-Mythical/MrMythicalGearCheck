@@ -45,15 +45,12 @@ local function shouldCheckEnchant(slotId, playerClass)
     end
 
     -- Death Knights use rune engraving instead of enchants on weapons
-    local config = getDependency("ConfigData")
     local weaponSlots = (config and config.CONSTANTS and config.CONSTANTS.WEAPON_SLOTS) or {}
     if isDeathKnight(playerClass) and weaponSlots[slotId] then
         return false
     end
     return true
 end
-
-
 
 --- Gets display name for enchant quality based on slot type
 --- @param slotId number Equipment slot ID

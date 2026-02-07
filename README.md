@@ -6,6 +6,12 @@
 
 Quickly inspect your group's gear to identify common preparation issues like missing enchants, empty gem sockets, and low durability items before starting challenging content.
 
+---
+
+**❤️ Support development on [Patreon](https://www.patreon.com/c/mrmythical)** - Help keep Mr. Mythical and all our addons updated and feature-rich!
+
+---
+
 ## Key Features
 
 ### **Comprehensive Gear Validation**
@@ -23,7 +29,7 @@ Get the latest version from your preferred addon manager:
 
 [Download on CurseForge](https://www.curseforge.com/wow/addons/mr-mythical-gear-check)
 
-[Download on Wago](https://addons.wago.io/addons/mrmythicalgearcheck) 
+[Download on Wago](https://addons.wago.io/addons/mrmythicalgearcheck)
 
 ## Related Addons
 
@@ -41,11 +47,15 @@ Looking for more Mythic+ tools? Check out our companion addons:
 
 [Download on Wago](https://addons.wago.io/addons/mrmythicalleaderboard)
 
+**[Mr. Mythical: Assistant](https://github.com/Mr-Mythical/MrMythicalAssistant)** - A sophisticated unicorn companion who provides witty commentary and helpful automation for your adventures.
+
+[Download on CurseForge](https://www.curseforge.com/wow/addons/mr-mythical-assistant)
+
+[Download on Wago](https://addons.wago.io/addons/mrmythicalassistant)
+
 ## More Tools & Resources
 
 Visit **[MrMythical.com](https://mrmythical.com)** for additional Mythic+ & Raid tools.
-
-Support development on **[Patreon](https://www.patreon.com/c/mrmythical)** 
 
 ### **Want to report a bug or suggest a feature?**
 Visit our [GitHub Issues](https://github.com/Mr-Mythical/MrMythicalGearCheck/issues) page for bug reports and feature requests.
