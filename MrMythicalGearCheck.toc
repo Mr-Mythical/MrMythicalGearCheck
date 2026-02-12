@@ -1,4 +1,4 @@
-## Interface: 120000, 110207
+## Interface: 120000
 ## Title: Mr. Mythical: Gear Check
 ## Notes: Quickly inspect your group's gear to identify common preparation issues like missing enchants, empty gem sockets, and low durability items before starting challenging content.
 ## Version: @project-version@
