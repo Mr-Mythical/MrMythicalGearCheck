@@ -1,6 +1,8 @@
 <Bindings>
     <Binding name="Toggle Gear Check UI" category="Mr. Mythical">
-        MrMythical.GearCheck:Toggle();
+        if MrMythicalGearCheck and MrMythicalGearCheck.UnifiedUI then
+            MrMythicalGearCheck.UnifiedUI:Toggle();
+        end
     </Binding>
 </Bindings>
 
