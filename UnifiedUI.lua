@@ -1091,14 +1091,20 @@ function MainFrameManager.setupFrameBehavior(frame)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     
     frame:EnableKeyboard(true)
-    frame:SetPropagateKeyboardInput(true)
+    if frame.SetPropagateKeyboardInput and not InCombatLockdown() then
+        frame:SetPropagateKeyboardInput(true)
+    end
     frame:SetScript("OnKeyDown", function(self, key)
         if key == "ESCAPE" then
             frame:Hide()
-            self:SetPropagateKeyboardInput(false)
+            if self.SetPropagateKeyboardInput and not InCombatLockdown() then
+                self:SetPropagateKeyboardInput(false)
+            end
             return
         end
-        self:SetPropagateKeyboardInput(true)
+        if self.SetPropagateKeyboardInput and not InCombatLockdown() then
+            self:SetPropagateKeyboardInput(true)
+        end
     end)
 end
 
