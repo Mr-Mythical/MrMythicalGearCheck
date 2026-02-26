@@ -1088,18 +1088,19 @@ function MainFrameManager.setupFrameBehavior(frame)
     frame:EnableMouse(true)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:SetScript("OnDragStop", function()
+        frame:StopMovingOrSizing()
+        MainFrameManager.saveFramePosition(frame)
+    end)
+    
+    frame:SetScript("OnHide", function()
+        MainFrameManager.saveFramePosition(frame)
+    end)
     
     frame:EnableKeyboard(true)
-    if frame.SetPropagateKeyboardInput and not InCombatLockdown() then
-        frame:SetPropagateKeyboardInput(true)
-    end
     frame:SetScript("OnKeyDown", function(self, key)
         if key == "ESCAPE" then
             frame:Hide()
-            if self.SetPropagateKeyboardInput and not InCombatLockdown() then
-                self:SetPropagateKeyboardInput(false)
-            end
             return
         end
         if self.SetPropagateKeyboardInput and not InCombatLockdown() then
@@ -1282,6 +1283,26 @@ end
 -- Schedule UI initialization for after addon load
 C_Timer.After(0.1, initializeUI)
 
+function MainFrameManager.saveFramePosition(frame)
+    MrMythicalGearCheckDB = MrMythicalGearCheckDB or {}
+    local point, relativeTo, relativePoint, xOffset, yOffset = frame:GetPoint()
+    MrMythicalGearCheckDB.framePosition = {
+        point = point,
+        relativePoint = relativePoint,
+        xOffset = xOffset,
+        yOffset = yOffset
+    }
+end
+
+function MainFrameManager.restoreFramePosition(frame)
+    MrMythicalGearCheckDB = MrMythicalGearCheckDB or {}
+    if MrMythicalGearCheckDB.framePosition then
+        local pos = MrMythicalGearCheckDB.framePosition
+        frame:ClearAllPoints()
+        frame:SetPoint(pos.point, UIParent, pos.relativePoint, pos.xOffset, pos.yOffset)
+    end
+end
+
 function UnifiedUI:Show(contentType)
     local UIHelpers = getUIHelpers()
     local UI_CONSTANTS = getUIConstants()
@@ -1290,6 +1311,7 @@ function UnifiedUI:Show(contentType)
         return
     end
     
+    MainFrameManager.restoreFramePosition(self.unifiedFrame)
     self.unifiedFrame:Show()
     
     if contentType and contentType ~= "dashboard" then
