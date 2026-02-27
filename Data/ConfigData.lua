@@ -34,7 +34,7 @@ ConfigData.CONSTANTS = {
         OFF_HAND = 17
     },
 
-    -- Slots that require enchants (rings, cloak, wrist, chest, legs, feet, weapon)
+    -- Slots that require enchants (rings, wrist, chest, legs, feet, cloak, weapon)
     ENCHANTABLE_SLOTS = {
         [5] = true,   -- Chest
         [7] = true,   -- Legs
@@ -78,27 +78,8 @@ ConfigData.CONSTANTS = {
         [12] = 2      -- Ring 2 (2 sockets)
     },
     
-    -- Special item IDs
-    SPECIAL_CLOAK_ITEM_ID = 235499, -- Cloak that can have gem sockets
-    
     -- Gem parsing configuration
-    GEM_SLOT_POSITIONS = {3, 4}, -- Positions in item string where gems are stored (only 2 gems max in current gear)
-    
-    -- Pure cloak gems (preferred versions)
-    PURE_GEMS = {
-        [238044] = true, -- Precise Fiber Pure
-        [238046] = true, -- Energizing Fiber Pure  
-        [238042] = true, -- Dexterous Fiber Pure
-        [238045] = true  -- Chronomantic Fiber Pure
-    },
-    
-    -- Non-pure cloak gems (should be upgraded to pure)
-    NON_PURE_GEMS = {
-        [238040] = true, -- Precise Fiber (non-pure)
-        [238037] = true, -- Energizing Fiber (non-pure)
-        [238041] = true, -- Dexterous Fiber (non-pure)
-        [238039] = true  -- Chronomantic Fiber (non-pure)
-    }
+    GEM_SLOT_POSITIONS = {3, 4} -- Positions in item string where gems are stored (only 2 gems max in current gear)
 }
 
 --- Helper to get defaults from Options module

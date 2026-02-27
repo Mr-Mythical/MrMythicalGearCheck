@@ -14,7 +14,7 @@ local EnchantData = MrMythicalGearCheck.EnchantData
 --- Enchant quality/rank definitions for validation
 --- We only care about detecting if someone has high-rank enchants, not which specific enchants
 --- Within each rank, there are often 2 qualities: low quality materials (lower ID) vs high quality materials (higher ID)
---- Examples: Glimmering (low quality) vs Radiant (high quality) for rings, Whisper (low quality) vs Chant (high quality) for wrist/cloak
+--- Examples: Glimmering (low quality) vs Radiant (high quality) for rings, Whisper (low quality) vs Chant (high quality) for wrist
 EnchantData.ENCHANT_RANKS = {
     RANK_3 = {
         7331, -- +Critical Strike (Tier 3)

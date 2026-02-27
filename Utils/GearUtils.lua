@@ -29,8 +29,7 @@ local ISSUE_TYPES = {
     LOW_RANK_GEM = "LOW_RANK_GEM",
     SUBOPTIMAL_GEM = "SUBOPTIMAL_GEM",
     MISSING_SOCKET = "MISSING_SOCKET",
-    EMPTY_SLOT = "EMPTY_SLOT",
-    NOT_SPECIAL_CLOAK = "NOT_SPECIAL_CLOAK"
+    EMPTY_SLOT = "EMPTY_SLOT"
 }
 
 --- Helper function to check if a slot should be enchant-checked based on class and weapon setup
@@ -227,67 +226,6 @@ local DurabilityValidationRule = {
     end
 }
 
---- Special cloak validation rule (extensible for special item types)
-local SpecialCloakValidationRule = {
-    appliesTo = function(self, itemAnalysis, slotId)
-        local config = getDependency("ConfigData")
-        local cloakSlot = (config and config.CONSTANTS and config.CONSTANTS.SLOT_IDS and config.CONSTANTS.SLOT_IDS.CLOAK) or 15
-        return slotId == cloakSlot and itemAnalysis.itemLink -- Cloak slot
-    end,
-
-    validate = function(self, itemAnalysis, slotId, config)
-        local issues = {}
-        local gearUtils = getDependency("GearUtils")
-
-        if gearUtils and gearUtils.IsSpecialCloak and gearUtils:IsSpecialCloak(itemAnalysis.itemLink) then
-            -- Special cloak validation logic
-            local socketInfo = itemAnalysis.sockets
-            if socketInfo then
-                local actualSockets = socketInfo.total
-                local filledSockets = socketInfo.filled
-
-                -- Check for missing socket
-                if actualSockets == 0 then
-                    table.insert(issues, {
-                        type = ISSUE_TYPES.MISSING_SOCKET,
-                        message = "Missing socket (special cloak should have gem slot)"
-                    })
-                end
-
-                -- Check for empty sockets
-                if actualSockets > 0 and filledSockets < actualSockets then
-                    local missingGems = actualSockets - filledSockets
-                    table.insert(issues, {
-                        type = ISSUE_TYPES.EMPTY_SOCKETS,
-                        message = "Missing " .. missingGems .. " gem" .. (missingGems > 1 and "s" or "")
-                    })
-                end
-
-                -- Check gem quality and purity
-                if itemAnalysis.gems then
-                    for _, gem in ipairs(itemAnalysis.gems) do
-                        if gem.rank and gem.rank > 0 and gem.rank < (config:GetMinGemRank() or 3) then
-                            table.insert(issues, {
-                                type = ISSUE_TYPES.LOW_RANK_GEM,
-                                message = "Low rank gem (rank " .. gem.rank .. ")"
-                            })
-                        end
-
-                        if gearUtils.IsNonPureGem and gearUtils:IsNonPureGem(gem.id) then
-                            table.insert(issues, {
-                                type = ISSUE_TYPES.SUBOPTIMAL_GEM,
-                                message = "Non-pure gem (should use pure version)"
-                            })
-                        end
-                    end
-                end
-            end
-        end
-
-        return issues
-    end
-}
-
 --- Empty slot validation rule 
 local EmptySlotValidationRule = {
     appliesTo = function(self, itemAnalysis, slotId)
@@ -307,13 +245,11 @@ local EmptySlotValidationRule = {
     end
 }
 
---- Missing socket validation rule for regular slots (not special cloak)
+--- Missing socket validation rule
 local MissingSocketValidationRule = {
     appliesTo = function(self, itemAnalysis, slotId)
         local config = getDependency("ConfigData")
-        -- Apply to all slots except special cloak that have expected sockets
-        local cloakSlot = (config and config.CONSTANTS and config.CONSTANTS.SLOT_IDS and config.CONSTANTS.SLOT_IDS.CLOAK) or 15
-        return slotId ~= cloakSlot and itemAnalysis and 
+        return itemAnalysis and 
                config and config.CONSTANTS and config.CONSTANTS.GEMABLE_SLOTS and
                config.CONSTANTS.GEMABLE_SLOTS[slotId]
     end,
@@ -338,32 +274,6 @@ local MissingSocketValidationRule = {
                 table.insert(issues, {
                     type = ISSUE_TYPES.MISSING_SOCKET,
                     message = "Missing " .. missingSocketCount .. " socket" .. (missingSocketCount > 1 and "s" or "")
-                })
-            end
-        end
-        
-        return issues
-    end
-}
-
---- Non-special cloak validation rule (checks if wearing correct cloak type)
-local NonSpecialCloakValidationRule = {
-    appliesTo = function(self, itemAnalysis, slotId, playerClass)
-        local config = getDependency("ConfigData")
-        local cloakSlot = (config and config.CONSTANTS and config.CONSTANTS.SLOT_IDS and config.CONSTANTS.SLOT_IDS.CLOAK) or 15
-        return slotId == cloakSlot and itemAnalysis -- Only apply to cloak slot when item is equipped
-    end,
-
-    validate = function(self, itemAnalysis, slotId, config)
-        local issues = {}
-        local gearUtils = getDependency("GearUtils")
-        
-        if gearUtils and gearUtils.IsSpecialCloak then
-            local isSpecialCloak = gearUtils:IsSpecialCloak(itemAnalysis.itemLink)
-            if not isSpecialCloak then
-                table.insert(issues, {
-                    type = ISSUE_TYPES.NOT_SPECIAL_CLOAK,
-                    message = "Not wearing special cloak"
                 })
             end
         end
@@ -408,10 +318,8 @@ local ValidationEngine = {
 ValidationEngine:registerRule(EnchantValidationRule)
 ValidationEngine:registerRule(GemValidationRule)
 ValidationEngine:registerRule(DurabilityValidationRule)
-ValidationEngine:registerRule(SpecialCloakValidationRule)
 ValidationEngine:registerRule(EmptySlotValidationRule)
 ValidationEngine:registerRule(MissingSocketValidationRule)
-ValidationEngine:registerRule(NonSpecialCloakValidationRule)
 
 
 
@@ -485,7 +393,6 @@ function GearUtils:AnalyzeGear(unit, mode)
             lowRankEnchants = 0,
             missingSockets = 0,
             emptyGems = 0,
-            specialCloakIssue = 0,
             totalIssues = 0
         }
     end
@@ -514,7 +421,7 @@ function GearUtils:AnalyzeGear(unit, mode)
         results.totalIssues = results.unenchantedItems + results.lowRankEnchants + 
                              (results.hasLowDurability and 1 or 0) + results.emptySlots + 
                              results.lowRankGems + results.suboptimalGems + results.missingSockets + 
-                             results.emptyGems + results.specialCloakIssue
+                             results.emptyGems
 
         if results.totalIssues == 0 then
             table.insert(results.summaryLines, "|cff00ff00PERFECT GEAR! No issues detected.|r")
@@ -604,9 +511,6 @@ function GearUtils:ProcessSlotIssues(itemAnalysis, slotId, slotName, playerClass
         elseif issue.type == ISSUE_TYPES.EMPTY_SLOT then
             results.emptySlots = results.emptySlots + 1
             table.insert(results.gearDetails, "|cffff8000- Empty slot: " .. slotName .. "|r")
-        elseif issue.type == ISSUE_TYPES.NOT_SPECIAL_CLOAK then
-            results.specialCloakIssue = 1
-            table.insert(results.gearDetails, "|cffff8000- " .. issue.message .. "|r")
         end
     end
 end
@@ -750,48 +654,6 @@ function GearUtils:GetItemGems(itemLink)
 end
 
 
-
---- Checks if a gem is a non-pure version (for special cloak gems)
---- @param gemID number The gem item ID
---- @return boolean True if the gem is non-pure
-function GearUtils:IsNonPureGem(gemID)
-    local configData = getDependency("ConfigData")
-    local nonPureGems = (configData and configData.CONSTANTS and configData.CONSTANTS.NON_PURE_GEMS) or {}
-    return nonPureGems[gemID] or false
-end
-
---- Checks if an item is a special cloak (uses modern API if available)
---- @param itemLink string Item link to check
---- @return boolean True if the item is a special cloak
-function GearUtils:IsSpecialCloak(itemLink)
-    if not itemLink then
-        return false
-    end
-
-    -- Try modern C_Item API first
-    if C_Item and C_Item.GetItemID then
-        local itemLocation = C_Item.GetItemLocation and C_Item.GetItemLocation(itemLink)
-        if itemLocation then
-            local itemID = C_Item.GetItemID(itemLocation)
-            if itemID then
-                local configData = getDependency("ConfigData")
-                local specialCloakID = (configData and configData.CONSTANTS and configData.CONSTANTS.SPECIAL_CLOAK_ITEM_ID) or
-                0
-                return itemID == specialCloakID
-            end
-        end
-    end
-
-    -- Fall back to string parsing
-    local itemID = tonumber(itemLink:match("item:(%d+)"))
-    if itemID then
-        local configData = getDependency("ConfigData")
-        local specialCloakID = (configData and configData.CONSTANTS and configData.CONSTANTS.SPECIAL_CLOAK_ITEM_ID) or 0
-        return itemID == specialCloakID
-    end
-
-    return false
-end
 
 --- Gets socket information from an item
 --- @param itemLink string Item link to check
