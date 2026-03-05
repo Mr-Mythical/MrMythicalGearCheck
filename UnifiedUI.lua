@@ -14,13 +14,11 @@ local UnifiedUI = MrMythicalGearCheck.UnifiedUI
 local UIContentCreators = {}
 local NavigationManager = {}
 
--- Get UI constants at runtime
 local function getUIConstants()
     local UIHelpers = MrMythicalGearCheck.UIHelpers
     return UIHelpers and UIHelpers.UI_CONSTANTS
 end
 
--- Get UI helpers at runtime
 local function getUIHelpers()
     return MrMythicalGearCheck.UIHelpers
 end
@@ -289,13 +287,13 @@ function UIContentCreators.dashboard(parentFrame)
     subtitle:SetPoint("TOP", title, "BOTTOM", 0, -5)
     
     local welcome = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontNormal",
-        "Welcome to Mr. Mythical Gear Check! Use the navigation panel to check your gear or validate group and raid members.", "TOP", 0, -30)
+        "Welcome to Mr. Mythical: Gear Check! Use the navigation panel to check your gear or validate group and raid members.", "TOP", 0, -30)
     welcome:SetPoint("TOP", subtitle, "BOTTOM", 0, -30)
     welcome:SetWidth(500)
     welcome:SetJustifyH("CENTER")
     
     local version = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontDisableSmall",
-        "Mr. Mythical Gear Check by Braunerr", "BOTTOM", 0, UI_CONSTANTS.LAYOUT.LARGE_PADDING)
+        "Mr. Mythical: Gear Check by Braunerr", "BOTTOM", 0, UI_CONSTANTS.LAYOUT.LARGE_PADDING)
     UIHelpers.setTextColor(version, "DISABLED")
 end
 
