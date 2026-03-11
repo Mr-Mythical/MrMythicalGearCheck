@@ -11,7 +11,6 @@ MrMythicalGearCheck.UIHelpers = {}
 
 local UIHelpers = MrMythicalGearCheck.UIHelpers
 
--- UI Constants for consistent styling
 UIHelpers.UI_CONSTANTS = {
     FRAME = {
         WIDTH = 850,

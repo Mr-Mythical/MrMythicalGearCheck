@@ -20,7 +20,6 @@ end
 
 MrMythicalGearCheck.DebugPrint = MrMythicalGearCheck.DebugPrint or debugPrint
 
---- Event handler for addon initialization
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 

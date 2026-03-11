@@ -313,14 +313,12 @@ function UIContentCreators.personal_gear(parentFrame)
         UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 380, 
         UI_CONSTANTS.LAYOUT.LARGE_PADDING, -60)
     
-    -- Check results text
     local analysisText = UIHelpers.createFontString(scrollChild, "OVERLAY", "GameFontNormal",
         "Loading gear check...", "TOPLEFT", 10, -10)
     analysisText:SetWidth(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 80)
     analysisText:SetJustifyH("LEFT")
     analysisText:SetJustifyV("TOP")
     
-    -- Refresh button
     local refreshButton = CreateFrame("Button", nil, parentFrame, "UIPanelButtonTemplate")
     refreshButton:SetSize(120, 25)
     refreshButton:SetPoint("BOTTOMRIGHT", -UI_CONSTANTS.LAYOUT.LARGE_PADDING, UI_CONSTANTS.LAYOUT.LARGE_PADDING)
@@ -360,7 +358,6 @@ function UIContentCreators.refreshPersonalGear(analysisText, scrollChild, scroll
         return
     end
     
-    -- Display the analysis results
     if analysis.summaryLines and #analysis.summaryLines > 0 then
         analysisText:SetText(table.concat(analysis.summaryLines, "\n"))
     elseif analysis.error then
@@ -385,7 +382,6 @@ function UIContentCreators.group_validation(parentFrame)
     local title = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontNormalLarge",
         "Group Gear Validation", "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING)
     
-    -- Control panel for scan operations
     local controlPanel = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
     controlPanel:SetPoint("TOP", title, "BOTTOM", 0, -10)
     controlPanel:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 60)
@@ -397,27 +393,23 @@ function UIContentCreators.group_validation(parentFrame)
     })
     controlPanel:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
     
-    -- Fresh Scan button
     local scanButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
     scanButton:SetPoint("LEFT", controlPanel, "LEFT", 10, 0)
     scanButton:SetSize(100, 30)
     scanButton:SetText("Fresh Scan")
     
-    -- Pause button
     local pauseButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
     pauseButton:SetPoint("LEFT", scanButton, "RIGHT", 10, 0)
     pauseButton:SetSize(80, 30)
     pauseButton:SetText("Pause")
     pauseButton:Disable()
     
-    -- Retry Failed button (always visible)
     local rescanButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
     rescanButton:SetPoint("LEFT", pauseButton, "RIGHT", 10, 0)
     rescanButton:SetSize(100, 30)
     rescanButton:SetText("Retry Failed")
     rescanButton:Disable() -- Initially disabled until there are failed scans
     
-    -- Refresh Members button
     local refreshButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
     refreshButton:SetPoint("LEFT", rescanButton, "RIGHT", 10, 0)
     refreshButton:SetSize(110, 30)
@@ -426,7 +418,6 @@ function UIContentCreators.group_validation(parentFrame)
         UIContentCreators.refreshGroupData(parentFrame.uiElements)
     end)
     
-    -- Progress bar
     local progressBar = CreateFrame("StatusBar", nil, controlPanel)
     progressBar:SetPoint("LEFT", refreshButton, "RIGHT", 20, 0)
     progressBar:SetPoint("RIGHT", controlPanel, "RIGHT", -10, 0)
@@ -436,7 +427,6 @@ function UIContentCreators.group_validation(parentFrame)
     progressBar:SetMinMaxValues(0, 100)
     progressBar:SetValue(0)
     
-    -- Progress bar background
     local progressBg = progressBar:CreateTexture(nil, "BACKGROUND")
     progressBg:SetAllPoints(progressBar)
     progressBg:SetColorTexture(0.2, 0.2, 0.2, 0.8)
