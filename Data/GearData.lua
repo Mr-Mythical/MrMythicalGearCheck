@@ -32,7 +32,6 @@ GearData.SLOT_NAMES = {
 }
 
 --- Gets slot name for display
---- Gets slot name for display
 --- @param slotId number Equipment slot ID
 --- @return string Slot name
 function GearData:GetSlotName(slotId)
