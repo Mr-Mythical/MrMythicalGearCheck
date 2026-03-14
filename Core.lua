@@ -1,8 +1,8 @@
 --[[
-Core.lua - Mr. Mythical Gear Check Core Logic
+Core.lua - MrMythicalGearCheck core bootstrap
 
-Purpose: Main functionality for gear validation and issue detection
-Dependencies: All Data and Utils modules
+Purpose: Initializes core addon state and startup event handling.
+Dependencies: Shared addon table and Options module (if loaded).
 Author: Braunerr
 --]]
 
