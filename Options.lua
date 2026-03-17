@@ -12,10 +12,8 @@ _G.MrMythicalGearCheck = _G.MrMythicalGearCheck or {}
 
 local Options = {}
 
--- Export the Options module immediately so it's available to other files
 _G.MrMythicalGearCheck.Options = Options
 
--- Configuration data
 local DEFAULTS = {
     MIN_ENCHANT_RANK = 3,
     REQUIRE_PREMIUM_ENCHANTS = false,
@@ -24,7 +22,6 @@ local DEFAULTS = {
     LOW_DURABILITY_THRESHOLD = 50
 }
 
--- Expose defaults
 Options.DEFAULTS = DEFAULTS
 
 local DROPDOWN_OPTIONS = {
@@ -98,23 +95,19 @@ local function createSetting(category, name, key, settingType, tooltip, options)
     return { setting = setting, initializer = initializer }
 end
 
---- Initialize the addon settings panel
 function Options.initializeSettings()
     MrMythicalGearCheckDB = MrMythicalGearCheckDB or {}
 
-    -- Set defaults for any missing values
     for key, default in pairs(DEFAULTS) do
         if MrMythicalGearCheckDB[key] == nil then
             MrMythicalGearCheckDB[key] = default
         end
     end
 
-    -- Call settings panel creation directly
     Options.createSettingsPanel()
 end
 
 function Options.createSettingsPanel()
-    -- Use a global registry to coordinate with the sibling Mr. Mythical addon
     if not _G.MrMythicalSettingsRegistry then
         _G.MrMythicalSettingsRegistry = {}
     end
@@ -122,18 +115,15 @@ function Options.createSettingsPanel()
     local registry = _G.MrMythicalSettingsRegistry
     local parentCategory = nil
 
-    -- Check if the sibling addon already created the parent category
     if registry.parentCategory then
         parentCategory = registry.parentCategory
     else
-        -- Create the parent category
         parentCategory = Settings.RegisterVerticalLayoutCategory("Mr. Mythical")
         registry.parentCategory = parentCategory
         registry.createdBy = "MrMythicalGearCheck"
         Settings.RegisterAddOnCategory(parentCategory)
     end
 
-    -- Create our subcategory under the parent
     local category = Settings.RegisterVerticalLayoutSubcategory(parentCategory, "Gear Check")
 
     registry.subCategories = registry.subCategories or {}
@@ -141,14 +131,12 @@ function Options.createSettingsPanel()
 
     local layout = SettingsPanel:GetLayout(category)
 
-    -- Helper function to add section header
     local function addHeader(name, tooltip)
         local headerData = { name = name, tooltip = tooltip }
         local headerInitializer = Settings.CreateElementInitializer("SettingsListSectionHeaderTemplate", headerData)
         layout:AddInitializer(headerInitializer)
     end
 
-    -- Define all settings in a table-driven way
     local settingsConfig = {
         {
             header = { name = "Detection Settings", tooltip = "Settings that control what gear issues are detected and reported" },
