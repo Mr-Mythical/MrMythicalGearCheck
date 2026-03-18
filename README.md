@@ -23,6 +23,13 @@ Perform detailed inspections of player equipment to identify common issues:
 ### **Commands**
 - `/mrgc` or `/gearcheck` - Open the gear check interface
 
+## Data Source
+
+`enchantments.json` is the source of truth for gem/enchant data. The addon consumes a generated Lua mirror file at runtime:
+
+- Generate/update Lua data: `node scripts/generate_enchantments_lua.js`
+- Generated file: `Data/EnchantmentsData.lua`
+
 ## Download
 
 Get the latest version from your preferred addon manager:

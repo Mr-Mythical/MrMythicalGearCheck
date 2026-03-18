@@ -42,30 +42,15 @@ local function shouldCheckEnchant(slotId, playerClass)
             config.CONSTANTS.ENCHANTABLE_SLOTS[slotId]) then
         return false
     end
-
-    -- Death Knights use rune engraving instead of enchants on weapons
-    local weaponSlots = (config and config.CONSTANTS and config.CONSTANTS.WEAPON_SLOTS) or {}
-    if isDeathKnight(playerClass) and weaponSlots[slotId] then
-        return false
-    end
     return true
 end
 
---- Gets display name for enchant quality based on slot type
+--- Gets display name for enchant quality
 --- @param slotId number Equipment slot ID
 --- @param isRequired boolean Whether this is for the "required" quality (true) or current quality (false)
 --- @return string Display name
 local function getQualityDisplayName(slotId, isRequired)
-    -- Rings (slots 11, 12)
-    if slotId == 11 or slotId == 12 then
-        return isRequired and "Radiant" or "Glimmering"
-        -- Wrist (slot 9) and Cloak (slot 15)
-    elseif slotId == 9 or slotId == 15 then
-        return isRequired and "Chant" or "Whisper"
-        -- Default fallback
-    else
-        return isRequired and "High Quality" or "Low Quality"
-    end
+    return isRequired and "Premium Materials" or "Cheap Materials"
 end
 
 local EnchantValidationRule = {
@@ -90,11 +75,32 @@ local EnchantValidationRule = {
         return true
     end,
 
-    validate = function(self, itemAnalysis, slotId, config)
+    validate = function(self, itemAnalysis, slotId, config, playerClass)
         local issues = {}
 
         -- Skip validation if no item analysis (empty slot)
         if not itemAnalysis then
+            return issues
+        end
+
+        local weaponSlots = (config and config.CONSTANTS and config.CONSTANTS.WEAPON_SLOTS) or {}
+        local enchantData = getDependency("EnchantData")
+        local enchantId = itemAnalysis.enchant and itemAnalysis.enchant.id or 0
+
+        -- Death Knights require rune enchants on weapon slots.
+        if isDeathKnight(playerClass) and weaponSlots[slotId] then
+            if enchantId == 0 then
+                table.insert(issues, {
+                    type = ISSUE_TYPES.MISSING_ENCHANT,
+                    message = "Missing rune"
+                })
+            elseif enchantData and enchantData.IsDeathKnightRune and not enchantData:IsDeathKnightRune(enchantId) then
+                table.insert(issues, {
+                    type = ISSUE_TYPES.LOW_RANK_ENCHANT,
+                    message = "Invalid Death Knight weapon enchant (expected a rune)"
+                })
+            end
+
             return issues
         end
 
@@ -104,7 +110,6 @@ local EnchantValidationRule = {
                 message = "Missing enchant"
             })
         else
-            local enchantData = getDependency("EnchantData")
             if enchantData then
                 local enchantInfo = enchantData:GetEnchantInfo(itemAnalysis.enchant.id)
                 if enchantInfo then
@@ -112,9 +117,7 @@ local EnchantValidationRule = {
                     local requirePremium = config:RequirePremiumEnchants()
 
                     local hasRankIssue = enchantInfo.rank < minRank
-                    -- Only check quality for slots that have quality variations (rings, wrist, cloak)
-                    local qualityCheckSlots = config.CONSTANTS and config.CONSTANTS.QUALITY_CHECK_SLOTS or {}
-                    local hasQualityIssue = requirePremium and qualityCheckSlots[slotId] and not enchantInfo.isPremium
+                    local hasQualityIssue = requirePremium and enchantInfo.quality == "cheap"
 
                     if hasRankIssue or hasQualityIssue then
                         local message = ""
@@ -155,7 +158,7 @@ local EnchantValidationRule = {
 
 --- Gem validation rule
 local GemValidationRule = {
-    appliesTo = function(self, slotId)
+    appliesTo = function(self, itemAnalysis, slotId)
         local config = getDependency("ConfigData")
         return config and config.CONSTANTS and config.CONSTANTS.GEMABLE_SLOTS and
             config.CONSTANTS.GEMABLE_SLOTS[slotId]
@@ -180,18 +183,46 @@ local GemValidationRule = {
         -- Check gem quality if we have gem data
         if itemAnalysis.gems then
             local minGemRank = config:GetMinGemRank() or 3
+            local gearData = getDependency("GearData")
+            local slotName = gearData and gearData.SLOT_NAMES and gearData.SLOT_NAMES[slotId] or "Unknown Slot"
+
             for _, gem in ipairs(itemAnalysis.gems) do
-                if gem.rank and gem.rank > 0 and gem.rank < minGemRank then
+                local hasRankIssue = gem.rank and gem.rank > 0 and gem.rank < minGemRank
+                local hasQualityIssue = gem.quality == "cheap"
+                local warningText = gem.warning or ""
+                local warningLower = string.lower(warningText)
+                local hasSingleStatWarning = warningLower:find("single%-stat") ~= nil
+                local hasSuboptimalIssue = warningText ~= "" and (not hasQualityIssue or hasSingleStatWarning)
+
+                if hasRankIssue and hasQualityIssue then
                     table.insert(issues, {
                         type = ISSUE_TYPES.LOW_RANK_GEM,
-                        message = "Low rank gem (rank " .. gem.rank .. ", need " .. minGemRank .. ")"
+                        message = "Low rank (rank " ..
+                            gem.rank ..
+                            "/" ..
+                            minGemRank ..
+                            ") and low quality (" ..
+                            getQualityDisplayName(slotId, false) ..
+                            ") upgrade to higher quality (" .. getQualityDisplayName(slotId, true) .. ") on " .. slotName
+                    })
+                elseif hasRankIssue then
+                    table.insert(issues, {
+                        type = ISSUE_TYPES.LOW_RANK_GEM,
+                        message = "Low rank gem (rank " .. gem.rank .. ", need " .. minGemRank .. ") on " .. slotName
+                    })
+                elseif hasQualityIssue then
+                    table.insert(issues, {
+                        type = ISSUE_TYPES.SUBOPTIMAL_GEM,
+                        message = "Low quality (" ..
+                            getQualityDisplayName(slotId, false) ..
+                            ") upgrade to higher quality (" .. getQualityDisplayName(slotId, true) .. ") on " .. slotName
                     })
                 end
 
-                if gem.warning then
+                if hasSuboptimalIssue then
                     table.insert(issues, {
                         type = ISSUE_TYPES.SUBOPTIMAL_GEM,
-                        message = gem.warning
+                        message = warningText
                     })
                 end
             end
@@ -256,21 +287,12 @@ local MissingSocketValidationRule = {
 
     validate = function(self, itemAnalysis, slotId, config)
         local issues = {}
-        
-        local optionalSlots = config.CONSTANTS and config.CONSTANTS.OPTIONAL_GEM_SLOTS or {}
-        local isOptionalSlot = optionalSlots[slotId] or false
         local expectedSockets = config.CONSTANTS.GEMABLE_SLOTS[slotId] or 0
         
         if expectedSockets > 0 then
-            local shouldWarnAboutMissingSockets = true
-            if isOptionalSlot then
-                local excludeOptional = config:ShouldExcludeOptionalGemSlots()
-                shouldWarnAboutMissingSockets = not excludeOptional
-            end
-            
             local actualSockets = itemAnalysis.sockets.total
             local missingSocketCount = expectedSockets - actualSockets
-            if missingSocketCount > 0 and shouldWarnAboutMissingSockets then
+            if missingSocketCount > 0 then
                 table.insert(issues, {
                     type = ISSUE_TYPES.MISSING_SOCKET,
                     message = "Missing " .. missingSocketCount .. " socket" .. (missingSocketCount > 1 and "s" or "")
@@ -303,7 +325,7 @@ local ValidationEngine = {
 
         for _, rule in ipairs(self.rules) do
             if rule:appliesTo(itemAnalysis, slotId, playerClass) then
-                local issues = rule:validate(itemAnalysis, slotId, config)
+                local issues = rule:validate(itemAnalysis, slotId, config, playerClass)
                 for _, issue in ipairs(issues) do
                     table.insert(allIssues, issue)
                 end
@@ -481,6 +503,20 @@ function GearUtils:ProcessSlotIssues(itemAnalysis, slotId, slotName, playerClass
     
     -- Use the validation engine to get all issues for this slot (including empty slots)
     local issues = ValidationEngine:validateItem(itemAnalysis, slotId, ConfigData, playerClass)
+
+    local function formatIssueWithSlot(message)
+        if type(message) ~= "string" then
+            return ""
+        end
+
+        local suffix = " on " .. slotName
+        local altSuffix = " in " .. slotName
+        if message:find(suffix, 1, true) or message:find(altSuffix, 1, true) then
+            return message
+        end
+
+        return message .. " in " .. slotName
+    end
     
     -- Process each issue and update counters
     for _, issue in ipairs(issues) do
@@ -495,10 +531,10 @@ function GearUtils:ProcessSlotIssues(itemAnalysis, slotId, slotName, playerClass
             table.insert(results.gearDetails, "|cffff8000- " .. issue.message .. " in " .. slotName .. "|r")
         elseif issue.type == ISSUE_TYPES.LOW_RANK_GEM then
             results.lowRankGems = results.lowRankGems + 1
-            table.insert(results.gearDetails, "|cffff8000- " .. issue.message .. " in " .. slotName .. "|r")
+            table.insert(results.gearDetails, "|cffff8000- " .. formatIssueWithSlot(issue.message) .. "|r")
         elseif issue.type == ISSUE_TYPES.SUBOPTIMAL_GEM then
             results.suboptimalGems = results.suboptimalGems + 1
-            table.insert(results.gearDetails, "|cffff8000- " .. issue.message .. " in " .. slotName .. "|r")
+            table.insert(results.gearDetails, "|cffff8000- " .. formatIssueWithSlot(issue.message) .. "|r")
         elseif issue.type == ISSUE_TYPES.MISSING_SOCKET then
             results.missingSockets = results.missingSockets + 1
             table.insert(results.gearDetails, "|cffff8000- " .. issue.message .. " in " .. slotName .. "|r")
@@ -617,6 +653,7 @@ function GearUtils:GetItemGems(itemLink)
             local hasEnhancedEffect = false
             local warning = nil
             local gemName = "Gem ID: " .. gemID
+            local gemQuality = "unknown"
 
             local _, gemLink = C_Item.GetItemGem(itemLink, socketIndex)
             if gemLink then
@@ -637,6 +674,9 @@ function GearUtils:GetItemGems(itemLink)
                 if gemData.GetGemWarning then
                     warning = gemData:GetGemWarning(gemID)
                 end
+                if gemData.GetGemQuality then
+                    gemQuality = gemData:GetGemQuality(gemID)
+                end
             end
 
             table.insert(gems, {
@@ -644,6 +684,7 @@ function GearUtils:GetItemGems(itemLink)
                 name = gemName,
                 rank = gemRank,
                 socket = socketIndex,
+                quality = gemQuality,
                 hasEnhancedEffect = hasEnhancedEffect,
                 warning = warning
             })
@@ -701,9 +742,26 @@ function GearUtils:GetItemSockets(itemLink, slotId)
 
     -- Use tooltip scanning for socket detection (this is what you asked for)
     local emptySocketCount = 0
-    local socketKeywords = {
-        "Socket"
-    }
+    local socketKeywords = {}
+
+    local function addKeyword(value)
+        if type(value) == "string" and value ~= "" then
+            table.insert(socketKeywords, value)
+        end
+    end
+
+    -- Prefer localized global strings when available.
+    addKeyword(rawget(_G, "EMPTY_SOCKET_PRISMATIC"))
+    addKeyword(rawget(_G, "EMPTY_SOCKET_META"))
+    addKeyword(rawget(_G, "EMPTY_SOCKET_COGWHEEL"))
+    addKeyword(rawget(_G, "EMPTY_SOCKET_HYDRAULIC"))
+
+    -- Fallback keywords for clients/versions without those globals.
+    addKeyword("Prismatic Socket")
+    addKeyword("Meta Socket")
+    addKeyword("Cogwheel Socket")
+    addKeyword("Hydraulic Socket")
+    addKeyword("Socket")
 
     -- Use tooltip utility for tooltip scanning
     local TooltipUtils = getDependency("TooltipUtils")

@@ -11,6 +11,7 @@
 
 Data/ConfigData.lua
 Data/GearData.lua
+Data/EnchantmentsData.lua
 Data/EnchantData.lua
 Data/GemData.lua
 Utils/UIHelpers.lua

@@ -15,10 +15,9 @@ local Options = {}
 _G.MrMythicalGearCheck.Options = Options
 
 local DEFAULTS = {
-    MIN_ENCHANT_RANK = 3,
-    REQUIRE_PREMIUM_ENCHANTS = false,
-    MIN_GEM_RANK = 3,
-    EXCLUDE_OPTIONAL_GEM_SLOTS = true,
+    MIN_ENCHANT_RANK = 2,
+    REQUIRE_PREMIUM_ENCHANTS = true,
+    MIN_GEM_RANK = 2,
     LOW_DURABILITY_THRESHOLD = 50
 }
 
@@ -26,27 +25,23 @@ Options.DEFAULTS = DEFAULTS
 
 local DROPDOWN_OPTIONS = {
     MIN_ENCHANT_RANK = {
-        { text = "Rank 1 or higher (Any Quality)",     value = 1 },
-        { text = "Rank 2 or higher (Medium+ Quality)", value = 2 },
-        { text = "Rank 3 only (High Quality)",         value = 3 }
+        { text = "Rank 1 or higher (Any Quality)", value = 1 },
+        { text = "Rank 2 only (High Quality)",     value = 2 }
     },
     MIN_GEM_RANK = {
-        { text = "Rank 1 or higher (Any Quality)",     value = 1 },
-        { text = "Rank 2 or higher (Medium+ Quality)", value = 2 },
-        { text = "Rank 3 only (High Quality)",         value = 3 }
+        { text = "Rank 1 or higher (Any Quality)", value = 1 },
+        { text = "Rank 2 only (High Quality)",     value = 2 }
     }
 }
 
 local TOOLTIPS = {
     MIN_ENCHANT_RANK = "Set the minimum required enchant quality rank for gear validation.\n\n" ..
         "|cffffffffRank 1:|r Basic quality enchants (Tier 1)\n" ..
-        "|cffffffffRank 2:|r Medium quality enchants (Tier 2)\n" ..
-        "|cffffffffRank 3:|r High quality enchants (Tier 3)",
+        "|cffffffffRank 2:|r High quality enchants (Tier 2)",
 
     MIN_GEM_RANK = "Set the minimum required gem quality rank for gear validation.\n\n" ..
         "|cffffffffRank 1:|r Basic quality gems (Tier 1)\n" ..
-        "|cffffffffRank 2:|r Medium quality gems (Tier 2)\n" ..
-        "|cffffffffRank 3:|r High quality gems (Tier 3)"
+        "|cffffffffRank 2:|r High quality gems (Tier 2)"
 }
 
 --- Creates a setting with appropriate UI element
@@ -153,7 +148,7 @@ function Options.createSettingsPanel()
                     key = "REQUIRE_PREMIUM_ENCHANTS",
                     type = "boolean",
                     tooltip =
-                    "When enabled, requires high quality enchant materials (e.g., 'Radiant' instead of 'Glimmering' for rings, 'Chant' instead of 'Whisper' for wrist/cloak)."
+                    "When enabled, low-cost enchant materials are flagged as issues."
                 },
                 {
                     name = "Minimum Gem Rank",
@@ -161,14 +156,6 @@ function Options.createSettingsPanel()
                     type = "number",
                     tooltip = TOOLTIPS.MIN_GEM_RANK,
                     options = DROPDOWN_OPTIONS.MIN_GEM_RANK
-                },
-                {
-                    name = "Exclude Optional Gem Slots",
-                    key = "EXCLUDE_OPTIONAL_GEM_SLOTS",
-                    type = "boolean",
-                    tooltip = "When enabled, head/wrist/belt slots won't count as 'missing gems' in the summary.\n\n" ..
-                        "|cffffffffThis is useful early in seasons when these gems are harder to obtain.|r\n\n" ..
-                        "|cffffffffNote:|r Quality of gems in these slots will still be checked if present."
                 }
             }
         }

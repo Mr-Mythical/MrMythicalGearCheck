@@ -998,10 +998,6 @@ function MainFrameManager.setupFrameBehavior(frame)
         MainFrameManager.saveFramePosition(frame)
     end)
     
-    frame:SetScript("OnHide", function()
-        MainFrameManager.saveFramePosition(frame)
-    end)
-    
     frame:EnableKeyboard(true)
     frame:SetScript("OnKeyDown", function(self, key)
         if key == "ESCAPE" then
@@ -1203,8 +1199,10 @@ function MainFrameManager.restoreFramePosition(frame)
     MrMythicalGearCheckDB = MrMythicalGearCheckDB or {}
     if MrMythicalGearCheckDB.framePosition then
         local pos = MrMythicalGearCheckDB.framePosition
-        frame:ClearAllPoints()
-        frame:SetPoint(pos.point, UIParent, pos.relativePoint, pos.xOffset, pos.yOffset)
+        if pos.point and pos.relativePoint and pos.xOffset and pos.yOffset then
+            frame:ClearAllPoints()
+            frame:SetPoint(pos.point, UIParent, pos.relativePoint, pos.xOffset, pos.yOffset)
+        end
     end
 end
 

@@ -30,13 +30,25 @@ function TooltipUtils.scanTooltipForSockets(itemLink, socketKeywords)
 
     local emptySocketCount = 0
 
+    local function normalizeTooltipText(text)
+        -- Strip texture tags and color codes so matching works consistently.
+        local cleaned = text:gsub("|T.-|t", "")
+            :gsub("|c%x%x%x%x%x%x%x%x", "")
+            :gsub("|r", "")
+            :gsub("^%s+", "")
+            :gsub("%s+$", "")
+        return string.lower(cleaned)
+    end
+
     for i = 1, tooltip:NumLines() do
         local line = _G["MrMythicalSocketTooltipTextLeft" .. i]
         if line then
             local text = line:GetText()
             if text then
+                local normalizedText = normalizeTooltipText(text)
                 for _, keyword in ipairs(socketKeywords) do
-                    if text:find(keyword) then
+                    local normalizedKeyword = string.lower(keyword)
+                    if normalizedKeyword ~= "" and normalizedText:find(normalizedKeyword, 1, true) then
                         emptySocketCount = emptySocketCount + 1
                         break -- Only count once per line
                     end

@@ -34,32 +34,22 @@ ConfigData.CONSTANTS = {
         OFF_HAND = 17
     },
 
-    -- Slots that require enchants (rings, wrist, chest, legs, feet, cloak, weapon)
+    -- Slots that require enchants (head, shoulder, chest, legs, feet, fingers, weapon)
     ENCHANTABLE_SLOTS = {
+        [1] = true,   -- Head
+        [3] = true,   -- Shoulder
         [5] = true,   -- Chest
         [7] = true,   -- Legs
         [8] = true,   -- Feet
-        [9] = true,   -- Wrist
         [11] = true,  -- Ring 1
         [12] = true,  -- Ring 2
-        [15] = true,  -- Back (Cloak)
         [16] = true,  -- Main Hand
         [17] = true   -- Off Hand
     },
     
-    -- Slots where enchant quality (premium vs cheap) matters
+    -- Slots where enchant material quality (premium vs cheap) matters.
+    -- Expansion 11 has a 2-rank system and does not use the previous premium material split.
     QUALITY_CHECK_SLOTS = {
-        [9] = true,   -- Wrist
-        [11] = true,  -- Ring 1
-        [12] = true,  -- Ring 2
-        [15] = true   -- Back (Cloak)
-    },
-
-    -- Optional gem slots (can be excluded from missing socket warnings)
-    OPTIONAL_GEM_SLOTS = {
-        [1] = true,   -- Head
-        [6] = true,   -- Belt  
-        [9] = true    -- Wrist
     },
 
     -- Weapon slots for Death Knight rune checking
@@ -68,14 +58,15 @@ ConfigData.CONSTANTS = {
         [17] = true   -- Off Hand
     },
     
-    -- Slots that can have gems (head=1, belt=1, wrist=1, neck=2, rings=2 each)
+    -- Slots that can have gems in Expansion 11.
+    -- Neck and ring sockets are no longer treated as expected sockets; we only validate empty sockets when present.
     GEMABLE_SLOTS = {
         [1] = 1,      -- Head (1 socket)
-        [2] = 2,      -- Neck (2 sockets)
+        [2] = 0,      -- Neck (check empty sockets only)
         [6] = 1,      -- Belt (1 socket)
         [9] = 1,      -- Wrist (1 socket)
-        [11] = 2,     -- Ring 1 (2 sockets)
-        [12] = 2      -- Ring 2 (2 sockets)
+        [11] = 0,     -- Ring 1 (check empty sockets only)
+        [12] = 0      -- Ring 2 (check empty sockets only)
     },
     
     -- Gem parsing configuration
@@ -88,10 +79,10 @@ local function getDefaults()
 end
 
 --- Gets the user's preferred minimum enchant rank setting
---- @return number Minimum enchant rank (1-3, defaults to 3)
+--- @return number Minimum enchant rank (1-2, defaults to 2)
 function ConfigData:GetMinEnchantRank()
     local db = MrMythicalGearCheckDB or {}
-    return db.MIN_ENCHANT_RANK or getDefaults().MIN_ENCHANT_RANK or 3
+    return db.MIN_ENCHANT_RANK or getDefaults().MIN_ENCHANT_RANK or 2
 end
 
 --- Gets whether high quality enchant materials are required
@@ -102,27 +93,10 @@ function ConfigData:RequirePremiumEnchants()
 end
 
 --- Gets the minimum gem rank requirement
---- @return number Minimum gem rank (defaults to 3)
+--- @return number Minimum gem rank (defaults to 2)
 function ConfigData:GetMinGemRank()
     local db = MrMythicalGearCheckDB or {}
-    return db.MIN_GEM_RANK or getDefaults().MIN_GEM_RANK or 3
-end
-
---- Checks if optional gem slots (head/wrist/belt) should be excluded from missing gem count
---- @return boolean True if optional slots should be excluded
-function ConfigData:ShouldExcludeOptionalGemSlots()
-    local db = MrMythicalGearCheckDB or {}
-    
-    -- If the setting is explicitly set in the database, use that
-    if db.EXCLUDE_OPTIONAL_GEM_SLOTS ~= nil then
-        local result = db.EXCLUDE_OPTIONAL_GEM_SLOTS
-        return result
-    end
-    
-    -- Otherwise, use the default
-    local result = getDefaults().EXCLUDE_OPTIONAL_GEM_SLOTS
-    if result == nil then result = true end
-    return result
+    return db.MIN_GEM_RANK or getDefaults().MIN_GEM_RANK or 2
 end
 
 --- Gets the low durability threshold percentage
