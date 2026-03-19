@@ -28,7 +28,6 @@ local ISSUE_TYPES = {
     LOW_DURABILITY = "LOW_DURABILITY",
     LOW_RANK_GEM = "LOW_RANK_GEM",
     SUBOPTIMAL_GEM = "SUBOPTIMAL_GEM",
-    MISSING_SOCKET = "MISSING_SOCKET",
     EMPTY_SLOT = "EMPTY_SLOT"
 }
 
@@ -42,6 +41,13 @@ local function shouldCheckEnchant(slotId, playerClass)
             config.CONSTANTS.ENCHANTABLE_SLOTS[slotId]) then
         return false
     end
+
+    -- Wrist enchants are intentionally ignored for warning generation.
+    local wristSlot = (config and config.CONSTANTS and config.CONSTANTS.SLOT_IDS and config.CONSTANTS.SLOT_IDS.WRIST) or 9
+    if slotId == wristSlot then
+        return false
+    end
+
     return true
 end
 
@@ -159,9 +165,8 @@ local EnchantValidationRule = {
 --- Gem validation rule
 local GemValidationRule = {
     appliesTo = function(self, itemAnalysis, slotId)
-        local config = getDependency("ConfigData")
-        return config and config.CONSTANTS and config.CONSTANTS.GEMABLE_SLOTS and
-            config.CONSTANTS.GEMABLE_SLOTS[slotId]
+        -- Only validate gem issues on items that actually have sockets.
+        return itemAnalysis and itemAnalysis.sockets and itemAnalysis.sockets.total > 0
     end,
 
     validate = function(self, itemAnalysis, slotId, config)
@@ -276,34 +281,6 @@ local EmptySlotValidationRule = {
     end
 }
 
---- Missing socket validation rule
-local MissingSocketValidationRule = {
-    appliesTo = function(self, itemAnalysis, slotId)
-        local config = getDependency("ConfigData")
-        return itemAnalysis and 
-               config and config.CONSTANTS and config.CONSTANTS.GEMABLE_SLOTS and
-               config.CONSTANTS.GEMABLE_SLOTS[slotId]
-    end,
-
-    validate = function(self, itemAnalysis, slotId, config)
-        local issues = {}
-        local expectedSockets = config.CONSTANTS.GEMABLE_SLOTS[slotId] or 0
-        
-        if expectedSockets > 0 then
-            local actualSockets = itemAnalysis.sockets.total
-            local missingSocketCount = expectedSockets - actualSockets
-            if missingSocketCount > 0 then
-                table.insert(issues, {
-                    type = ISSUE_TYPES.MISSING_SOCKET,
-                    message = "Missing " .. missingSocketCount .. " socket" .. (missingSocketCount > 1 and "s" or "")
-                })
-            end
-        end
-        
-        return issues
-    end
-}
-
 --- Validation engine that applies rules without knowing their specifics
 local ValidationEngine = {
     rules = {},
@@ -341,7 +318,6 @@ ValidationEngine:registerRule(EnchantValidationRule)
 ValidationEngine:registerRule(GemValidationRule)
 ValidationEngine:registerRule(DurabilityValidationRule)
 ValidationEngine:registerRule(EmptySlotValidationRule)
-ValidationEngine:registerRule(MissingSocketValidationRule)
 
 
 
@@ -441,9 +417,8 @@ function GearUtils:AnalyzeGear(unit, mode)
     if mode == "detailed" then
         -- Calculate total issues and generate summary
         results.totalIssues = results.unenchantedItems + results.lowRankEnchants + 
-                             (results.hasLowDurability and 1 or 0) + results.emptySlots + 
-                             results.lowRankGems + results.suboptimalGems + results.missingSockets + 
-                             results.emptyGems
+                     (results.hasLowDurability and 1 or 0) + results.emptySlots + 
+                     results.lowRankGems + results.suboptimalGems + results.emptyGems
 
         if results.totalIssues == 0 then
             table.insert(results.summaryLines, "|cff00ff00PERFECT GEAR! No issues detected.|r")
@@ -535,9 +510,6 @@ function GearUtils:ProcessSlotIssues(itemAnalysis, slotId, slotName, playerClass
         elseif issue.type == ISSUE_TYPES.SUBOPTIMAL_GEM then
             results.suboptimalGems = results.suboptimalGems + 1
             table.insert(results.gearDetails, "|cffff8000- " .. formatIssueWithSlot(issue.message) .. "|r")
-        elseif issue.type == ISSUE_TYPES.MISSING_SOCKET then
-            results.missingSockets = results.missingSockets + 1
-            table.insert(results.gearDetails, "|cffff8000- " .. issue.message .. " in " .. slotName .. "|r")
         elseif issue.type == ISSUE_TYPES.LOW_DURABILITY then
             -- Only show durability message once globally (not per-item)
             if not results.hasLowDurability then

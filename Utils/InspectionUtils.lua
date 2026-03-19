@@ -576,9 +576,6 @@ function InspectionUtils:CreatePlayerSummary(unit, playerName)
         if analysis.lowRankEnchants > 0 then
             table.insert(issueTypes, analysis.lowRankEnchants .. " enchant issues")
         end
-        if analysis.missingSockets > 0 then
-            table.insert(issueTypes, analysis.missingSockets .. " missing sockets")
-        end
         if analysis.emptyGems > 0 then
             table.insert(issueTypes, analysis.emptyGems .. " empty gems")
         end
