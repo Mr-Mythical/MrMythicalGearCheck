@@ -17,6 +17,8 @@ Data/GemData.lua
 Utils/UIHelpers.lua
 Utils/TooltipUtils.lua
 Utils/GearUtils.lua
+Utils/InspectionUnits.lua
+Utils/InspectionState.lua
 Utils/InspectionUtils.lua
 Utils/CommandHandlers.lua
 Options.lua

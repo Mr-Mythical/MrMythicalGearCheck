@@ -11,6 +11,18 @@ MrMythicalGearCheck.InspectionUtils = {}
 
 local InspectionUtils = MrMythicalGearCheck.InspectionUtils
 
+local function getDependency(name)
+    return (_G.MrMythicalGearCheck and _G.MrMythicalGearCheck[name]) or MrMythicalGearCheck[name]
+end
+
+local function getInspectionUnits()
+    return getDependency("InspectionUnits")
+end
+
+local function getInspectionState()
+    return getDependency("InspectionState")
+end
+
 --- Common inspect frame names used across multiple functions
 local INSPECT_FRAME_NAMES = {
     "InspectFrame",
@@ -24,7 +36,8 @@ local lastInspectionTime = 0
 
 --- Persistent group scan state - stores scan data for each group member
 --- Key: playerName, Value: scan data or nil if not scanned/failed
-InspectionUtils.groupScanState = {}
+local InspectionState = getInspectionState()
+InspectionUtils.groupScanState = (InspectionState and InspectionState.groupScanState) or {}
 
 --- Scan queue for players to inspect
 local scanQueue = {}
@@ -216,39 +229,12 @@ end
 --- @param playerName string Name of the player to find
 --- @return string|nil Unit ID if found, nil otherwise
 function InspectionUtils:FindUnitByName(playerName)
-    if not playerName then return nil end
-    
-    -- Check if it's the player themselves
-    if UnitName("player") == playerName then
-        return "player"
+    local InspectionUnits = getInspectionUnits()
+    if not InspectionUnits then
+        return nil
     end
-    
-    -- Check party members
-    for i = 1, GetNumSubgroupMembers() do
-        local unit = "party" .. i
-        if UnitName(unit) == playerName then
-            return unit
-        end
-    end
-    
-    -- Check raid members
-    for i = 1, GetNumGroupMembers() do
-        local unit = "raid" .. i
-        if UnitName(unit) == playerName then
-            return unit
-        end
-    end
-    
-    -- Check if it's a target or mouseover
-    if UnitName("target") == playerName then
-        return "target"
-    end
-    
-    if UnitName("mouseover") == playerName then
-        return "mouseover"
-    end
-    
-    return nil
+
+    return InspectionUnits:FindUnitByName(playerName)
 end
 
 --- Starts inspection of the next unit in the queue (consolidated function for both inspection and rescan)
@@ -366,23 +352,12 @@ end
 --- @return boolean True if unit is valid for inspection
 --- @return string|nil Error message if invalid
 function InspectionUtils:IsValidInspectionUnit(unit, requireCanInspect)
-    if not unit then
-        return false, "Unit is nil"
+    local InspectionUnits = getInspectionUnits()
+    if not InspectionUnits then
+        return false, "InspectionUnits is unavailable"
     end
 
-    if not UnitExists(unit) then
-        return false, "Unit does not exist"
-    end
-
-    if not UnitIsPlayer(unit) then
-        return false, "Unit is not a player"
-    end
-
-    if requireCanInspect and not CanInspect(unit) then
-        return false, "Unit cannot be inspected"
-    end
-
-    return true
+    return InspectionUnits:IsValidInspectionUnit(unit, requireCanInspect)
 end
 
 --- Requests inspection for a unit
@@ -505,33 +480,12 @@ end
 --- Gets all current group members
 --- @return table Array of unit IDs
 function InspectionUtils:GetGroupMembers()
-    local members = {}
-    
-    -- Check group status
-    
-    if IsInRaid() then
-        -- In raid, include all raid members including player
-        for i = 1, GetNumGroupMembers() do
-            local unit = "raid" .. i
-            if UnitExists(unit) then
-                table.insert(members, unit)
-            end
-        end
-    elseif IsInGroup() then
-        -- In party, include player and all party members
-        table.insert(members, "player")
-        for i = 1, GetNumSubgroupMembers() do
-            local unit = "party" .. i
-            if UnitExists(unit) then
-                table.insert(members, unit)
-            end
-        end
-    else
-        -- Not in group, return empty list
+    local InspectionUnits = getInspectionUnits()
+    if not InspectionUnits then
         return {}
     end
-    
-    return members
+
+    return InspectionUnits:GetGroupMembers()
 end
 
 --- Creates a brief summary for an inspected player
@@ -539,59 +493,12 @@ end
 --- @param playerName string Player name
 --- @return string Brief summary of player's gear status
 function InspectionUtils:CreatePlayerSummary(unit, playerName)
-    local GearUtils = MrMythicalGearCheck.GearUtils
-    
-    -- Use the comprehensive analysis from live gear data
-    local analysis = GearUtils:AnalyzeGear(unit, "detailed")
-    
-    -- Calculate item level from live data
-    local itemLevel = 0
-    local itemCount = 0
-    local gearData = MrMythicalGearCheck.GearData
-    if gearData and gearData.SLOT_NAMES then
-        for slotId, _ in pairs(gearData.SLOT_NAMES) do
-            local itemLink = GetInventoryItemLink(unit, slotId)
-            if itemLink then
-                local _, _, _, itemLvl = GetItemInfo(itemLink)
-                if itemLvl and itemLvl > 0 then
-                    itemLevel = itemLevel + itemLvl
-                    itemCount = itemCount + 1
-                end
-            end
-        end
+    local state = getInspectionState()
+    if not state then
+        return "Inspection completed"
     end
-    local avgItemLevel = itemCount > 0 and math.floor(itemLevel / itemCount) or 0
-    
-    -- Create comprehensive summary
-    if analysis.totalIssues == 0 then
-        return string.format("iLvl %d - |cff00ff00PERFECT GEAR|r", avgItemLevel)
-    else
-        local issueTypes = {}
-        if analysis.emptySlots > 0 then
-            table.insert(issueTypes, analysis.emptySlots .. " empty slots")
-        end
-        if analysis.unenchantedItems > 0 then
-            table.insert(issueTypes, analysis.unenchantedItems .. " missing enchants")
-        end
-        if analysis.lowRankEnchants > 0 then
-            table.insert(issueTypes, analysis.lowRankEnchants .. " enchant issues")
-        end
-        if analysis.emptyGems > 0 then
-            table.insert(issueTypes, analysis.emptyGems .. " empty gems")
-        end
-        if analysis.lowRankGems > 0 then
-            table.insert(issueTypes, analysis.lowRankGems .. " gem issues")
-        end
-        if analysis.suboptimalGems and analysis.suboptimalGems > 0 then
-            table.insert(issueTypes, analysis.suboptimalGems .. " suboptimal gems")
-        end
-        if analysis.hasLowDurability then
-            table.insert(issueTypes, "needs repair")
-        end
-        
-        local issueText = table.concat(issueTypes, ", ")
-        return string.format("iLvl %d - |cffff8000%d ISSUES|r (%s)", avgItemLevel, analysis.totalIssues, issueText)
-    end
+
+    return state:CreatePlayerSummary(unit, playerName)
 end
 
 -- Event frames for debugging and monitoring (not critical for functionality)
@@ -757,89 +664,43 @@ end
 --- Gets list of failed inspections (members that need scanning)
 --- @return table List of members that haven't been successfully scanned
 function InspectionUtils:GetFailedInspectionsList()
-    local failedList = {}
-    local groupMembers = self:GetGroupMembers()
-    
-    for _, unit in ipairs(groupMembers) do
-        local playerName = UnitName(unit)
-        if playerName then
-            local scanState = self.groupScanState[playerName]
-            -- Consider failed if never scanned OR if scanned but hasData is not true
-            if not scanState or scanState.hasData ~= true then
-                table.insert(failedList, {
-                    name = playerName,
-                    unit = unit,
-                    reason = scanState and scanState.reason or "Not scanned"
-                })
-            end
-        end
+    local state = getInspectionState()
+    if not state then
+        return {}
     end
-    
-    return failedList
+
+    return state:GetFailedInspectionsList()
 end
 
 --- Clears scan state for current group members (for fresh scan)
 function InspectionUtils:ClearGroupScanState()
-    local groupMembers = self:GetGroupMembers()
-    for _, unit in ipairs(groupMembers) do
-        local playerName = UnitName(unit)
-        if playerName then
-            self.groupScanState[playerName] = nil
-        end
+    local state = getInspectionState()
+    if not state then
+        return
     end
+
+    state:ClearGroupScanState()
 end
 
 --- Gets current inspection status for UI display
 --- @return table Current inspection status
 function InspectionUtils:GetInspectionStatus()
-    -- Get current group members
-    local groupMembers = self:GetGroupMembers()
-    local memberReports = {}
-    local failedCount = 0
-    
-    -- Build reports from persistent state
-    for _, unit in ipairs(groupMembers) do
-        local playerName = UnitName(unit)
-        if playerName then
-            local scanData = self.groupScanState[playerName]
-            if scanData and scanData.hasData then
-                -- Has scan data
-                table.insert(memberReports, {
-                    name = playerName,
-                    unit = unit,
-                    summary = scanData.summary,
-                    hasData = true
-                })
-            else
-                -- No scan data (not scanned or failed)
-                local summary = "Not scanned"
-                if scanData and scanData.summary then
-                    summary = scanData.summary
-                end
-                table.insert(memberReports, {
-                    name = playerName,
-                    unit = unit,
-                    summary = summary,
-                    hasData = false
-                })
-                failedCount = failedCount + 1
-            end
-        end
+    local state = getInspectionState()
+    if not state then
+        return {
+            hasResults = false,
+            totalMembers = 0,
+            inspectedMembers = 0,
+            failedCount = 0,
+            canRescan = false,
+            memberReports = {},
+            failedInspections = {},
+            queuedCount = #scanQueue,
+            scanQueue = scanQueue
+        }
     end
-    
-    local result = {
-        hasResults = #memberReports > 0,
-        totalMembers = #groupMembers,
-        inspectedMembers = #memberReports - failedCount,
-        failedCount = failedCount,
-        canRescan = failedCount > 0 and not InCombatLockdown(),
-        memberReports = memberReports,
-        failedInspections = self:GetFailedInspectionsList(),
-        queuedCount = #scanQueue,
-        scanQueue = scanQueue
-    }
-    
-    return result
+
+    return state:GetInspectionStatus(scanQueue)
 end
 
 --- Closes any open inspect windows
