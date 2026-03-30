@@ -177,12 +177,15 @@ local GemValidationRule = {
             return issues
         end
 
-        if itemAnalysis.sockets and itemAnalysis.sockets.total > itemAnalysis.sockets.filled then
+        -- Only warn about empty gem sockets if the item actually has sockets (not just based on slot type)
+        if itemAnalysis.sockets and itemAnalysis.sockets.total > 0 then
             local emptyCount = itemAnalysis.sockets.total - itemAnalysis.sockets.filled
-            table.insert(issues, {
-                type = ISSUE_TYPES.EMPTY_SOCKETS,
-                message = emptyCount .. " empty gem socket" .. (emptyCount > 1 and "s" or "")
-            })
+            if emptyCount > 0 then
+                table.insert(issues, {
+                    type = ISSUE_TYPES.EMPTY_SOCKETS,
+                    message = emptyCount .. " empty gem socket" .. (emptyCount > 1 and "s" or "")
+                })
+            end
         end
 
         -- Check gem quality if we have gem data
@@ -716,33 +719,49 @@ function GearUtils:GetItemSockets(itemLink, slotId)
     local emptySocketCount = 0
     local socketKeywords = {}
 
-    local function addKeyword(value)
+    local function addKeyword(value, isSpecific)
         if type(value) == "string" and value ~= "" then
-            table.insert(socketKeywords, value)
+            table.insert(socketKeywords, {word = value, specific = isSpecific})
         end
     end
 
-    -- Prefer localized global strings when available.
-    addKeyword(rawget(_G, "EMPTY_SOCKET_PRISMATIC"))
-    addKeyword(rawget(_G, "EMPTY_SOCKET_META"))
-    addKeyword(rawget(_G, "EMPTY_SOCKET_COGWHEEL"))
-    addKeyword(rawget(_G, "EMPTY_SOCKET_HYDRAULIC"))
+    -- Prefer localized global strings when available (mark as specific).
+    addKeyword(rawget(_G, "EMPTY_SOCKET_PRISMATIC"), true)
+    addKeyword(rawget(_G, "EMPTY_SOCKET_META"), true)
+    addKeyword(rawget(_G, "EMPTY_SOCKET_COGWHEEL"), true)
+    addKeyword(rawget(_G, "EMPTY_SOCKET_HYDRAULIC"), true)
 
-    -- Fallback keywords for clients/versions without those globals.
-    addKeyword("Prismatic Socket")
-    addKeyword("Meta Socket")
-    addKeyword("Cogwheel Socket")
-    addKeyword("Hydraulic Socket")
-    addKeyword("Socket")
+    -- Fallback keywords for clients/versions without those globals (mark as specific).
+    addKeyword("Prismatic Socket", true)
+    addKeyword("Meta Socket", true)
+    addKeyword("Cogwheel Socket", true)
+    addKeyword("Hydraulic Socket", true)
+    -- Add generic as non-specific
+    addKeyword("Socket", false)
 
     -- Use tooltip utility for tooltip scanning
     local TooltipUtils = getDependency("TooltipUtils")
+    local foundSpecific = false
     if TooltipUtils and TooltipUtils.scanTooltipForSockets then
-        emptySocketCount = TooltipUtils.scanTooltipForSockets(itemLink, socketKeywords)
+        -- Scan for each keyword, but only count if a specific one is found
+        for _, keyword in ipairs(socketKeywords) do
+            local count = TooltipUtils.scanTooltipForSockets(itemLink, {keyword.word})
+            if count > 0 then
+                if keyword.specific then
+                    emptySocketCount = emptySocketCount + count
+                    foundSpecific = true
+                end
+            end
+        end
     end
 
-    -- Total sockets = filled + empty
-    totalSockets = filledSockets + emptySocketCount
+    -- Only count sockets if we actually detect them and a specific keyword was found
+    if (emptySocketCount > 0 and foundSpecific) or filledSockets > 0 then
+        totalSockets = filledSockets + (foundSpecific and emptySocketCount or 0)
+    else
+        totalSockets = 0
+        filledSockets = 0
+    end
 
     return { total = totalSockets, filled = filledSockets }
 end
