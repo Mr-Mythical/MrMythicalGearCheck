@@ -833,3 +833,134 @@ function GearUtils:AnalyzePersonalGear()
         playerName = UnitName("player")
     }
 end
+
+local function getEnchantDisplayName(enchantId)
+    if not enchantId or enchantId == 0 then
+        return nil
+    end
+
+    local enchantmentsData = getDependency("EnchantmentsData")
+    local byCategory = enchantmentsData and enchantmentsData.BY_CATEGORY_NAME
+    if not byCategory then
+        return nil
+    end
+
+    for _, entries in pairs(byCategory) do
+        for _, entry in ipairs(entries) do
+            if entry and entry.id == enchantId then
+                local name = entry.displayName or entry.itemName
+                if type(name) == "string" and name ~= "" then
+                    -- Generated enchant names can end with quality digits (e.g. "Nature's Wrath 2").
+                    name = name:gsub("%s+%d+$", "")
+                end
+                return name
+            end
+        end
+    end
+
+    return nil
+end
+
+--- Builds a detailed personal report for gems/enchants and detected issues.
+--- @return table
+function GearUtils:GetPersonalGemEnchantIssuesReport()
+    local GearData = getDependency("GearData")
+    local EnchantData = getDependency("EnchantData")
+    local ConfigData = getDependency("ConfigData")
+
+    if not GearData or not GearData.SLOT_NAMES then
+        return {
+            reportLines = { "Unable to load slot data." },
+            issueLines = {},
+            issueCount = 0
+        }
+    end
+
+    local _, playerClass = UnitClass("player")
+
+    local slotIds = {}
+    for slotId in pairs(GearData.SLOT_NAMES) do
+        table.insert(slotIds, slotId)
+    end
+    table.sort(slotIds)
+
+    local reportLines = {}
+    local hasReportEntries = false
+    local issueCount = 0
+
+    for _, slotId in ipairs(slotIds) do
+        local slotName = GearData.SLOT_NAMES[slotId] or ("Slot " .. tostring(slotId))
+        local itemLink = GetInventoryItemLink("player", slotId)
+
+        if itemLink then
+            local itemAnalysis = self:AnalyzeItemInternal(itemLink, slotId, playerClass)
+            local slotIssues = ValidationEngine:validateItem(itemAnalysis, slotId, ConfigData, playerClass)
+
+            local enchantText = nil
+            local enchantId = itemAnalysis and itemAnalysis.enchant and itemAnalysis.enchant.id or 0
+            local isEnchantSlot = EnchantData and EnchantData.ENCHANTABLE_SLOTS and EnchantData.ENCHANTABLE_SLOTS[slotId]
+            if isEnchantSlot then
+                if enchantId and enchantId > 0 then
+                    enchantText = getEnchantDisplayName(enchantId) or "Unknown enchant"
+                else
+                    enchantText = "Missing"
+                end
+            end
+
+            local gemsText = nil
+            if itemAnalysis and itemAnalysis.sockets and itemAnalysis.sockets.total and itemAnalysis.sockets.total > 0 then
+                if itemAnalysis.gems and #itemAnalysis.gems > 0 then
+                    local gemParts = {}
+                    for _, gem in ipairs(itemAnalysis.gems) do
+                        table.insert(gemParts, gem.name or ("Gem " .. tostring(gem.id or 0)))
+                    end
+                    gemsText = table.concat(gemParts, "; ")
+                end
+
+                local emptySockets = math.max(0, (itemAnalysis.sockets.total or 0) - (itemAnalysis.sockets.filled or 0))
+                if emptySockets > 0 then
+                    gemsText = "Missing"
+                elseif not gemsText then
+                    gemsText = "Missing"
+                end
+            end
+
+            local slotIssueLines = {}
+            if slotIssues and #slotIssues > 0 then
+                for _, issue in ipairs(slotIssues) do
+                    if issue and issue.message and issue.message ~= "" then
+                        issueCount = issueCount + 1
+                        table.insert(slotIssueLines, "  |cffff8000Issue: " .. issue.message .. "|r")
+                    end
+                end
+            end
+
+            -- Skip slots that have nothing meaningful to display.
+            local shouldShowSlot = enchantText ~= nil or gemsText ~= nil or #slotIssueLines > 0
+            if shouldShowSlot then
+                hasReportEntries = true
+                table.insert(reportLines, string.format("|cffadd8e6%s|r", slotName))
+                if enchantText then
+                    table.insert(reportLines, "  Enchant: " .. enchantText)
+                end
+                if gemsText then
+                    table.insert(reportLines, "  Gems: " .. gemsText)
+                end
+                for _, issueLine in ipairs(slotIssueLines) do
+                    table.insert(reportLines, issueLine)
+                end
+                table.insert(reportLines, "")
+            end
+        end
+    end
+
+    if not hasReportEntries then
+        table.insert(reportLines, "No gem or enchant data found on equipped items.")
+    end
+
+    return {
+        reportLines = reportLines,
+        issueLines = {},
+        issueCount = issueCount
+    }
+end
