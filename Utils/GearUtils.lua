@@ -850,6 +850,8 @@ local function getEnchantDisplayName(enchantId)
             if entry and entry.id == enchantId then
                 local name = entry.displayName or entry.itemName
                 if type(name) == "string" and name ~= "" then
+                    -- Strip common "Enchant <Slot> - " prefixes (e.g. "Enchant Chest - Nature's Wrath").
+                    name = name:gsub("^[Ee]nchant%s+%a+%s+%-%s*", "")
                     -- Generated enchant names can end with quality digits (e.g. "Nature's Wrath 2").
                     name = name:gsub("%s+%d+$", "")
                 end
@@ -928,7 +930,7 @@ function GearUtils:GetPersonalGemEnchantIssuesReport()
             local slotIssueLines = {}
             if slotIssues and #slotIssues > 0 then
                 for _, issue in ipairs(slotIssues) do
-                    if issue and issue.message and issue.message ~= "" then
+                    if issue and issue.message and issue.message ~= "" and issue.type ~= ISSUE_TYPES.LOW_DURABILITY then
                         issueCount = issueCount + 1
                         table.insert(slotIssueLines, "  |cffff8000Issue: " .. issue.message .. "|r")
                     end

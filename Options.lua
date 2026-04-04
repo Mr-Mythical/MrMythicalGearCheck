@@ -18,7 +18,8 @@ local DEFAULTS = {
     MIN_ENCHANT_RANK = 2,
     REQUIRE_PREMIUM_ENCHANTS = true,
     MIN_GEM_RANK = 2,
-    LOW_DURABILITY_THRESHOLD = 50
+    LOW_DURABILITY_THRESHOLD = 50,
+    SHOW_CHARACTER_PANEL = true
 }
 
 Options.DEFAULTS = DEFAULTS
@@ -156,6 +157,12 @@ function Options.createSettingsPanel()
                     type = "number",
                     tooltip = TOOLTIPS.MIN_GEM_RANK,
                     options = DROPDOWN_OPTIONS.MIN_GEM_RANK
+                },
+                {
+                    name = "Show Gear Summary on Character Panel",
+                    key = "SHOW_CHARACTER_PANEL",
+                    type = "boolean",
+                    tooltip = "When enabled, a gear summary is displayed next to the character info panel."
                 }
             }
         }

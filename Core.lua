@@ -59,6 +59,14 @@ local function ensureCharacterReportFrame()
 end
 
 local function refreshCharacterReport()
+    local configData = _G.MrMythicalGearCheck and _G.MrMythicalGearCheck.ConfigData
+    if configData and not configData:GetShowCharacterPanel() then
+        if characterReportFrame then
+            characterReportFrame:Hide()
+        end
+        return
+    end
+
     if not CharacterFrame or not CharacterFrame:IsShown() then
         if characterReportFrame then
             characterReportFrame:Hide()

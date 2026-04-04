@@ -99,6 +99,17 @@ function ConfigData:GetMinGemRank()
     return db.MIN_GEM_RANK or getDefaults().MIN_GEM_RANK or 2
 end
 
+--- Gets whether the gear summary panel should be shown on the character info screen
+--- @return boolean Whether to show the character panel (defaults to true)
+function ConfigData:GetShowCharacterPanel()
+    local db = MrMythicalGearCheckDB or {}
+    if db.SHOW_CHARACTER_PANEL == nil then
+        local default = getDefaults().SHOW_CHARACTER_PANEL
+        return default == nil and true or default
+    end
+    return db.SHOW_CHARACTER_PANEL
+end
+
 --- Gets the low durability threshold percentage
 --- @return number Percentage below which durability is considered low (defaults to 50)
 function ConfigData:GetLowDurabilityThreshold()
