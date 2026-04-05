@@ -31,30 +31,48 @@ local characterHooksAttached = false
 local characterReportFrame
 local characterReportText
 
-local function ensureCharacterReportFrame()
-    if characterReportFrame then
-        return true
+-- Returns the frame whose right edge is the actual visible boundary of the
+-- character panel.  Any addon that widens CharacterFrameBg (or a similar
+-- child) beyond CharacterFrame itself will be detected automatically at
+-- runtime — no addon-name checks required.
+local function getCharacterFrameRightAnchor()
+    if CharacterFrame and _G.CharacterFrameBg then
+        local cfRight = CharacterFrame:GetRight()
+        local bgRight = _G.CharacterFrameBg:GetRight()
+        if cfRight and bgRight and bgRight > cfRight + 1 then
+            return _G.CharacterFrameBg
+        end
     end
+    return CharacterFrame
+end
 
+local function ensureCharacterReportFrame()
     if not CharacterFrame then
         return false
     end
 
-    local panel = CreateFrame("Frame", "MrMythicalGearCheckCharacterReportFrame", CharacterFrame)
-    panel:SetSize(340, 370)
-    panel:SetPoint("TOPLEFT", CharacterFrame, "TOPRIGHT", 10, -26)
+    if not characterReportFrame then
+        local panel = CreateFrame("Frame", "MrMythicalGearCheckCharacterReportFrame", CharacterFrame)
+        panel:SetSize(340, 370)
 
-    local text = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    text:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
-    text:SetJustifyH("LEFT")
-    text:SetJustifyV("TOP")
-    text:SetWidth(330)
-    -- Use a slightly larger non-default UI font for cleaner readability.
-    text:SetFont("Fonts\\ARIALN.TTF", 13, "")
-    text:SetText("Loading...")
+        local text = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        text:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
+        text:SetJustifyH("LEFT")
+        text:SetJustifyV("TOP")
+        text:SetWidth(330)
+        -- Use a slightly larger non-default UI font for cleaner readability.
+        text:SetFont("Fonts\\ARIALN.TTF", 13, "")
+        text:SetText("Loading...")
 
-    characterReportFrame = panel
-    characterReportText = text
+        characterReportFrame = panel
+        characterReportText = text
+    end
+
+    -- Re-anchor every call so changes made by other addons (e.g. ChonkyCharacterSheet
+    -- widening CharacterFrameBg) are always reflected.
+    characterReportFrame:ClearAllPoints()
+    characterReportFrame:SetPoint("TOPLEFT", getCharacterFrameRightAnchor(), "TOPRIGHT", 10, -26)
+
     return true
 end
 
