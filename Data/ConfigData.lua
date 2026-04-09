@@ -110,6 +110,17 @@ function ConfigData:GetShowCharacterPanel()
     return db.SHOW_CHARACTER_PANEL
 end
 
+--- Gets whether the character panel should only display detected issues
+--- @return boolean Whether to show issue-only output on the character panel (defaults to false)
+function ConfigData:GetShowCharacterPanelIssuesOnly()
+    local db = MrMythicalGearCheckDB or {}
+    if db.SHOW_CHARACTER_PANEL_ISSUES_ONLY == nil then
+        local default = getDefaults().SHOW_CHARACTER_PANEL_ISSUES_ONLY
+        return default == nil and false or default
+    end
+    return db.SHOW_CHARACTER_PANEL_ISSUES_ONLY
+end
+
 --- Gets the low durability threshold percentage
 --- @return number Percentage below which durability is considered low (defaults to 50)
 function ConfigData:GetLowDurabilityThreshold()

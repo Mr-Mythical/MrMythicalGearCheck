@@ -110,7 +110,9 @@ local function refreshCharacterReport()
         return
     end
 
-    local lines = report.reportLines or { "No gear report available." }
+    local showIssuesOnly = configData and configData.GetShowCharacterPanelIssuesOnly and
+        configData:GetShowCharacterPanelIssuesOnly()
+    local lines = (showIssuesOnly and report.issueLines) or report.reportLines or { "No gear report available." }
 
     characterReportText:SetText(table.concat(lines, "\n"))
     characterReportFrame:Show()

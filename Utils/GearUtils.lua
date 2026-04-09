@@ -887,6 +887,7 @@ function GearUtils:GetPersonalGemEnchantIssuesReport()
     table.sort(slotIds)
 
     local reportLines = {}
+    local issueOnlyLines = {}
     local hasReportEntries = false
     local issueCount = 0
 
@@ -953,6 +954,14 @@ function GearUtils:GetPersonalGemEnchantIssuesReport()
                 end
                 table.insert(reportLines, "")
             end
+
+            if #slotIssueLines > 0 then
+                table.insert(issueOnlyLines, string.format("|cffadd8e6%s|r", slotName))
+                for _, issueLine in ipairs(slotIssueLines) do
+                    table.insert(issueOnlyLines, issueLine)
+                end
+                table.insert(issueOnlyLines, "")
+            end
         end
     end
 
@@ -960,9 +969,13 @@ function GearUtils:GetPersonalGemEnchantIssuesReport()
         table.insert(reportLines, "No gem or enchant data found on equipped items.")
     end
 
+    if issueCount == 0 then
+        table.insert(issueOnlyLines, "No gear issues detected.")
+    end
+
     return {
         reportLines = reportLines,
-        issueLines = {},
+        issueLines = issueOnlyLines,
         issueCount = issueCount
     }
 end

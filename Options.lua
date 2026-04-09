@@ -19,7 +19,8 @@ local DEFAULTS = {
     REQUIRE_PREMIUM_ENCHANTS = true,
     MIN_GEM_RANK = 2,
     LOW_DURABILITY_THRESHOLD = 50,
-    SHOW_CHARACTER_PANEL = true
+    SHOW_CHARACTER_PANEL = true,
+    SHOW_CHARACTER_PANEL_ISSUES_ONLY = false
 }
 
 Options.DEFAULTS = DEFAULTS
@@ -163,6 +164,12 @@ function Options.createSettingsPanel()
                     key = "SHOW_CHARACTER_PANEL",
                     type = "boolean",
                     tooltip = "When enabled, a gear summary is displayed next to the character info panel."
+                },
+                {
+                    name = "Character Panel: Show Only Issues",
+                    key = "SHOW_CHARACTER_PANEL_ISSUES_ONLY",
+                    type = "boolean",
+                    tooltip = "When enabled, the character panel hides clean slots and only lists detected issues."
                 }
             }
         }
