@@ -110,6 +110,11 @@ local function refreshCharacterReport()
         return
     end
 
+    if (report.issueCount) == 0 then
+        characterReportFrame:Hide()
+        return
+    end
+
     local showIssuesOnly = configData and configData.GetShowCharacterPanelIssuesOnly and
         configData:GetShowCharacterPanelIssuesOnly()
     local lines = (showIssuesOnly and report.issueLines) or report.reportLines or { "No gear report available." }
