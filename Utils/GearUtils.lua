@@ -718,10 +718,23 @@ function GearUtils:GetItemSockets(itemLink, slotId)
     -- Use tooltip scanning for socket detection (this is what you asked for)
     local emptySocketCount = 0
     local socketKeywords = {}
+    local socketKeywordIndex = {}
 
     local function addKeyword(value, isSpecific)
         if type(value) == "string" and value ~= "" then
-            table.insert(socketKeywords, {word = value, specific = isSpecific})
+            local normalized = string.lower(value)
+            local existing = socketKeywordIndex[normalized]
+
+            if existing then
+                if isSpecific then
+                    existing.specific = true
+                end
+                return
+            end
+
+            local entry = {word = value, specific = isSpecific}
+            socketKeywordIndex[normalized] = entry
+            table.insert(socketKeywords, entry)
         end
     end
 
