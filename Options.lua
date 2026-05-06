@@ -37,11 +37,11 @@ local DROPDOWN_OPTIONS = {
 }
 
 local TOOLTIPS = {
-    MIN_ENCHANT_RANK = "Set the minimum required enchant quality rank for gear validation.\n\n" ..
+    MIN_ENCHANT_RANK = "Set the minimum required enchant quality rank.\n\n" ..
         "|cffffffffRank 1:|r Basic quality enchants (Tier 1)\n" ..
         "|cffffffffRank 2:|r High quality enchants (Tier 2)",
 
-    MIN_GEM_RANK = "Set the minimum required gem quality rank for gear validation.\n\n" ..
+    MIN_GEM_RANK = "Set the minimum required gem quality rank.\n\n" ..
         "|cffffffffRank 1:|r Basic quality gems (Tier 1)\n" ..
         "|cffffffffRank 2:|r High quality gems (Tier 2)"
 }
