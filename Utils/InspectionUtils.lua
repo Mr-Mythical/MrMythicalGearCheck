@@ -34,6 +34,12 @@ local INSPECT_FRAME_NAMES = {
 --- Used for cooldown tracking between group scans
 local lastInspectionTime = 0
 
+--- Seconds to wait for INSPECT_READY before failing the current target
+local INSPECTION_TIMEOUT_SECONDS = 5
+
+--- Active timeout handle for the in-flight inspection
+local inspectionTimeoutHandle = nil
+
 --- Persistent group scan state - stores scan data for each group member
 --- Key: playerName, Value: scan data or nil if not scanned/failed
 local InspectionState = getInspectionState()
@@ -44,6 +50,31 @@ local scanQueue = {}
 
 local groupInspectionCallback
 local uiProgressCallback
+
+local function cancelInspectionTimeout()
+    if inspectionTimeoutHandle then
+        inspectionTimeoutHandle:Cancel()
+        inspectionTimeoutHandle = nil
+    end
+end
+
+local function getUnitFullName(unit)
+    local InspectionUnits = getInspectionUnits()
+    if InspectionUnits and InspectionUnits.GetUnitFullName then
+        return InspectionUnits:GetUnitFullName(unit) or UnitName(unit)
+    end
+    return UnitName(unit)
+end
+
+local function scheduleInspectionTimeout(unit, playerName, isRescan)
+    cancelInspectionTimeout()
+    inspectionTimeoutHandle = C_Timer.NewTimer(INSPECTION_TIMEOUT_SECONDS, function()
+        inspectionTimeoutHandle = nil
+        if InspectionUtils.currentInspectionUnit == unit and InspectionUtils.currentInspectionName == playerName then
+            InspectionUtils:HandleInspectionFailure(unit or "", playerName, "Timed out waiting for inspect data", isRescan)
+        end
+    end)
+end
 
 --- Adds a player to the scan queue
 --- @param playerName string Name of the player to add
@@ -75,7 +106,7 @@ function InspectionUtils:AddGroupToScanQueue()
     local groupMembers = self:GetGroupMembers()
     
     for _, unit in ipairs(groupMembers) do
-        local name = UnitName(unit)
+        local name = getUnitFullName(unit)
         if name and self:AddPlayerToScanQueue(name) then
             added = added + 1
         end
@@ -116,7 +147,13 @@ function InspectionUtils:ScanQueuedPlayers(callback, progressCallback, clearPrev
     
     -- Check if we're in combat
     if InCombatLockdown() then
-        if callback then callback({}) end
+        if callback then
+            callback({
+                hasResults = false,
+                failedCount = #scanQueue,
+                error = "You are in combat"
+            })
+        end
         return
     end
     
@@ -125,7 +162,13 @@ function InspectionUtils:ScanQueuedPlayers(callback, progressCallback, clearPrev
     local cooldownTime = 5.0
     if lastInspectionTime and (currentTime - lastInspectionTime) < cooldownTime then
         local remainingTime = cooldownTime - (currentTime - lastInspectionTime)
-        if callback then callback({}) end
+        if callback then
+            callback({
+                hasResults = false,
+                failedCount = #scanQueue,
+                error = string.format("Scan cooldown (%.1fs remaining)", remainingTime)
+            })
+        end
         return
     end
     lastInspectionTime = currentTime
@@ -241,11 +284,25 @@ end
 --- @param isRescan boolean Whether this is a rescan operation
 function InspectionUtils:StartNextInspection(isRescan)
     local queue = isRescan and self.rescanQueue or self.inspectionQueue
-    local failureHandler = isRescan and self.HandleRescanFailure or self.HandleInspectionFailure
     local progressType = isRescan and "rescan_progress" or "progress"
     local messagePrefix = isRescan and "Rescanning" or "Analyzing"
     local completionType = isRescan and "rescan_completed" or "completed"
     local completionMessage = isRescan and "Rescan complete!" or "Inspection complete!"
+
+    if InCombatLockdown() then
+        cancelInspectionTimeout()
+        self:ClearInspectionState()
+        self:SendProgressCallback({
+            type = "error",
+            message = "Scan paused - you entered combat"
+        })
+        if groupInspectionCallback then
+            groupInspectionCallback(self:GetInspectionStatus())
+            groupInspectionCallback = nil
+            uiProgressCallback = nil
+        end
+        return
+    end
 
     if not queue or #queue == 0 then
         -- All inspections complete
@@ -261,9 +318,9 @@ function InspectionUtils:StartNextInspection(isRescan)
         end
 
         local failedCount = totalCount - successfulCount
-        local operationName = isRescan and "Rescan" or "Inspection"
 
         -- Clear any pending inspections and close inspect window
+        cancelInspectionTimeout()
         self:ClearInspectionState()
 
         -- Final progress update
@@ -297,44 +354,58 @@ function InspectionUtils:StartNextInspection(isRescan)
     local playerName = nextItem.name
     local index = nextItem.index
 
-    -- Start inspection process
-
     -- Progress update
     if uiProgressCallback then
         local totalMembers = 0
         for _ in pairs(self.groupScanState) do
             totalMembers = totalMembers + 1
         end
+        if totalMembers == 0 then
+            totalMembers = (isRescan and self.rescanQueue and (#self.rescanQueue + 1)) or (self.inspectionQueue and (#self.inspectionQueue + 1)) or 1
+        end
         self:SendProgressCallback({
             type = progressType,
             current = index - 1,
             total = totalMembers,
-            progress = math.floor(((index - 1) / totalMembers) * 100),
+            progress = math.floor(((index - 1) / math.max(totalMembers, 1)) * 100),
             message = messagePrefix .. " " .. playerName .. "..."
         })
     end
 
     -- Find the unit for this player name
-    local unit = self:FindUnitByName(playerName)
+    local unit = nextItem.unit or self:FindUnitByName(playerName)
 
     -- Set current inspection target
     self.currentInspectionUnit = unit
     self.currentInspectionName = playerName
 
     if not unit then
-        failureHandler(self, "", playerName, "Unit not found", isRescan)
+        self:HandleInspectionFailure("", playerName, "Player not found in group", isRescan)
         return
     end
 
+    -- Prefer the stable full name for state keys going forward
+    playerName = getUnitFullName(unit) or playerName
+    self.currentInspectionName = playerName
+
     -- Attempt to inspect the unit
+    local InspectionUnits = getInspectionUnits()
+    local failureReason = InspectionUnits and InspectionUnits.GetInspectFailureReason and InspectionUnits:GetInspectFailureReason(unit)
+    if failureReason then
+        self:HandleInspectionFailure(unit, playerName, failureReason, isRescan)
+        return
+    end
+
     local isValid, errorMsg = self:IsValidInspectionUnit(unit, false)
     if isValid then
         local success = self:RequestInspection(unit)
-        if not success then
-            failureHandler(self, unit or "", playerName, "Failed to request inspection", isRescan)
+        if success then
+            scheduleInspectionTimeout(unit, playerName, isRescan)
+        else
+            self:HandleInspectionFailure(unit or "", playerName, "Failed to request inspection", isRescan)
         end
     else
-        failureHandler(self, unit or "", playerName, errorMsg or "Unit validation failed", isRescan)
+        self:HandleInspectionFailure(unit or "", playerName, errorMsg or "Unit validation failed", isRescan)
     end
 end
 
@@ -364,6 +435,14 @@ end
 --- @param unit string Unit ID
 --- @return boolean True if inspection was requested successfully
 function InspectionUtils:RequestInspection(unit)
+    if not unit or unit == "player" then
+        return false
+    end
+
+    if InCombatLockdown() then
+        return false
+    end
+
     if not CanInspect(unit) then
         return false
     end
@@ -371,8 +450,14 @@ function InspectionUtils:RequestInspection(unit)
     -- Close any existing inspect window
     self:CloseInspectWindow()
     
-    -- Request inspection
-    local success, err = pcall(InspectUnit, unit)
+    -- Prefer NotifyInspect for background group scans
+    local notify = rawget(_G, "NotifyInspect")
+    local success, err
+    if type(notify) == "function" then
+        success, err = pcall(notify, unit)
+    else
+        success, err = pcall(InspectUnit, unit)
+    end
     if success then
         return true
     else
@@ -387,9 +472,12 @@ function InspectionUtils:ProcessInspectionSuccess(unit, name)
     
     -- Check if this is a rescan (if we're in rescan mode)
     local isRescan = self.rescanQueue ~= nil
+    cancelInspectionTimeout()
+
+    name = getUnitFullName(unit) or name
     
     -- Generate and show summary for this player
-    local summary = self:CreatePlayerSummary(unit, name)
+    local summary, details = self:CreatePlayerSummary(unit, name)
     if summary then
         
         -- Send character overview through UI progress callback
@@ -397,6 +485,7 @@ function InspectionUtils:ProcessInspectionSuccess(unit, name)
             type = isRescan and "rescan_complete" or "character_complete",
             playerName = name,
             summary = summary,
+            details = details,
             message = name .. ": " .. summary
         })
     else
@@ -406,6 +495,7 @@ function InspectionUtils:ProcessInspectionSuccess(unit, name)
             type = isRescan and "rescan_complete" or "character_complete",
             playerName = name,
             summary = "Inspection completed",
+            details = details,
             message = name .. ": Inspection completed"
         })
     end
@@ -414,6 +504,7 @@ function InspectionUtils:ProcessInspectionSuccess(unit, name)
     self.groupScanState[name] = {
         hasData = true,
         summary = summary or "Inspection completed",
+        details = details,
         timestamp = time()
     }
     
@@ -442,24 +533,31 @@ end
 function InspectionUtils:HandleInspectionFailure(unit, name, reason, isRescan)
     local operationName = isRescan and "rescan" or "inspection"
     local progressType = isRescan and "rescan_failed" or "character_failed"
+    cancelInspectionTimeout()
 
-    if not isRescan then
-        -- For initial inspections, mark as failed in persistent state
-        self.groupScanState[name] = {
-            hasData = false,
-            summary = "Analysis failed - " .. reason,
-            timestamp = time(),
-            reason = reason
-        }
-    else
-        -- For rescans, player remains in failed state (don't modify persistent state)
+    reason = reason or "Unknown failure"
+    if unit and unit ~= "" then
+        name = getUnitFullName(unit) or name
     end
+
+    local previous = name and self.groupScanState[name] or nil
+    local retryCount = (previous and previous.retryCount or 0) + (isRescan and 1 or 0)
+
+    -- Keep a durable failed record so Retry Failed / UI can show the real reason.
+    self.groupScanState[name] = {
+        hasData = false,
+        summary = "Failed - " .. reason,
+        timestamp = time(),
+        reason = reason,
+        retryCount = retryCount
+    }
 
     -- Send failure through UI progress callback
     self:SendProgressCallback({
         type = progressType,
         playerName = name,
         summary = operationName .. " failed - " .. reason,
+        reason = reason,
         message = name .. ": " .. operationName .. " failed - " .. reason
     })
 
@@ -492,10 +590,11 @@ end
 --- @param unit string Unit ID
 --- @param playerName string Player name
 --- @return string Brief summary of player's gear status
+--- @return table|nil Detail payload
 function InspectionUtils:CreatePlayerSummary(unit, playerName)
     local state = getInspectionState()
     if not state then
-        return "Inspection completed"
+        return "Inspection completed", nil
     end
 
     return state:CreatePlayerSummary(unit, playerName)
@@ -721,6 +820,7 @@ end
 
 --- Clears inspection state and closes windows
 function InspectionUtils:ClearInspectionState()
+    cancelInspectionTimeout()
     self.currentInspectionUnit = nil
     self.currentInspectionName = nil
     self:CloseInspectWindow()

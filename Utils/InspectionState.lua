@@ -17,18 +17,50 @@ local function getDependency(name)
     return (_G.MrMythicalGearCheck and _G.MrMythicalGearCheck[name]) or MrMythicalGearCheck[name]
 end
 
+local function getUnitDisplayName(unit)
+    local InspectionUnits = getDependency("InspectionUnits")
+    if InspectionUnits and InspectionUnits.GetUnitFullName then
+        return InspectionUnits:GetUnitFullName(unit) or UnitName(unit)
+    end
+    return UnitName(unit)
+end
+
+local function findScanDataForName(playerName)
+    local scanData = InspectionState.groupScanState[playerName]
+    if scanData then
+        return scanData, playerName
+    end
+
+    local InspectionUnits = getDependency("InspectionUnits")
+    if not InspectionUnits or not InspectionUnits.NamesMatch then
+        return nil, playerName
+    end
+
+    for storedName, storedData in pairs(InspectionState.groupScanState) do
+        if InspectionUnits:NamesMatch(storedName, playerName) then
+            return storedData, storedName
+        end
+    end
+
+    return nil, playerName
+end
+
 --- Creates a brief summary for an inspected player
 --- @param unit string Unit ID
 --- @param playerName string Player name
 --- @param gearInfo table|nil Optional cached gear info
 --- @return string Brief summary of player's gear status
+--- @return table|nil Detail payload with gearDetails / summaryLines / totalIssues
 function InspectionState:CreatePlayerSummary(unit, playerName, gearInfo)
     local GearUtils = getDependency("GearUtils")
     if not GearUtils then
-        return "Inspection completed"
+        return "Inspection completed", nil
     end
 
     local analysis = GearUtils:AnalyzeGear(unit, "detailed")
+    if not analysis then
+        return "Inspection completed", nil
+    end
 
     local itemLevel = 0
     local itemCount = 0
@@ -47,8 +79,15 @@ function InspectionState:CreatePlayerSummary(unit, playerName, gearInfo)
     end
     local avgItemLevel = itemCount > 0 and math.floor(itemLevel / itemCount) or 0
 
+    local details = {
+        gearDetails = analysis.gearDetails or {},
+        summaryLines = analysis.summaryLines or {},
+        totalIssues = analysis.totalIssues or 0,
+        avgItemLevel = avgItemLevel
+    }
+
     if analysis.totalIssues == 0 then
-        return string.format("iLvl %d - |cff00ff00PERFECT GEAR|r", avgItemLevel)
+        return string.format("iLvl %d - |cff00ff00PERFECT GEAR|r", avgItemLevel), details
     end
 
     local issueTypes = {}
@@ -75,7 +114,7 @@ function InspectionState:CreatePlayerSummary(unit, playerName, gearInfo)
     end
 
     local issueText = table.concat(issueTypes, ", ")
-    return string.format("iLvl %d - |cffff8000%d ISSUES|r (%s)", avgItemLevel, analysis.totalIssues, issueText)
+    return string.format("iLvl %d - |cffff8000%d ISSUES|r (%s)", avgItemLevel, analysis.totalIssues, issueText), details
 end
 
 --- Gets list of failed inspections (members that need scanning)
@@ -86,14 +125,15 @@ function InspectionState:GetFailedInspectionsList()
     local groupMembers = InspectionUnits and InspectionUnits:GetGroupMembers() or {}
 
     for _, unit in ipairs(groupMembers) do
-        local playerName = UnitName(unit)
+        local playerName = getUnitDisplayName(unit)
         if playerName then
-            local scanState = self.groupScanState[playerName]
+            local scanState = findScanDataForName(playerName)
             if not scanState or scanState.hasData ~= true then
                 table.insert(failedList, {
                     name = playerName,
                     unit = unit,
-                    reason = scanState and scanState.reason or "Not scanned"
+                    reason = scanState and scanState.reason or "Not scanned",
+                    retryCount = scanState and scanState.retryCount or 0
                 })
             end
         end
@@ -107,8 +147,12 @@ function InspectionState:ClearGroupScanState()
     local InspectionUnits = getDependency("InspectionUnits")
     local groupMembers = InspectionUnits and InspectionUnits:GetGroupMembers() or {}
     for _, unit in ipairs(groupMembers) do
-        local playerName = UnitName(unit)
+        local playerName = getUnitDisplayName(unit)
         if playerName then
+            local _, storedKey = findScanDataForName(playerName)
+            if storedKey then
+                self.groupScanState[storedKey] = nil
+            end
             self.groupScanState[playerName] = nil
         end
     end
@@ -124,26 +168,37 @@ function InspectionState:GetInspectionStatus(scanQueue)
     local failedCount = 0
 
     for _, unit in ipairs(groupMembers) do
-        local playerName = UnitName(unit)
+        local playerName = getUnitDisplayName(unit)
         if playerName then
-            local scanData = self.groupScanState[playerName]
+            local scanData = findScanDataForName(playerName)
             if scanData and scanData.hasData then
                 table.insert(memberReports, {
                     name = playerName,
                     unit = unit,
                     summary = scanData.summary,
-                    hasData = true
+                    details = scanData.details,
+                    hasData = true,
+                    reason = scanData.reason
                 })
             else
                 local summary = "Not scanned"
+                local reason = nil
                 if scanData and scanData.summary then
                     summary = scanData.summary
+                end
+                if scanData and scanData.reason then
+                    reason = scanData.reason
+                    if not scanData.summary then
+                        summary = "Failed - " .. reason
+                    end
                 end
                 table.insert(memberReports, {
                     name = playerName,
                     unit = unit,
                     summary = summary,
-                    hasData = false
+                    details = scanData and scanData.details or nil,
+                    hasData = false,
+                    reason = reason
                 })
                 failedCount = failedCount + 1
             end

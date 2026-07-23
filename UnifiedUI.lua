@@ -25,6 +25,8 @@ end
 
 function UIContentCreators.updateMemberFramesWithResults(uiElements, memberReports)
     if not uiElements.memberFrames or not memberReports then return end
+
+    local InspectionUnits = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUnits
     
     -- Create a lookup table for quick access to results by player name
     local resultsByName = {}
@@ -33,32 +35,92 @@ function UIContentCreators.updateMemberFramesWithResults(uiElements, memberRepor
             resultsByName[report.name] = report
         end
     end
+
+    local function findReport(playerName, unit)
+        local direct = resultsByName[playerName]
+        if direct then
+            return direct
+        end
+        if unit then
+            for _, report in ipairs(memberReports) do
+                if report.unit == unit then
+                    return report
+                end
+            end
+        end
+        if InspectionUnits and InspectionUnits.NamesMatch then
+            for _, report in ipairs(memberReports) do
+                if InspectionUnits:NamesMatch(report.name, playerName) then
+                    return report
+                end
+            end
+        end
+        return nil
+    end
     
     -- Update each member frame with existing results
     for _, memberFrame in ipairs(uiElements.memberFrames) do
         local playerName = memberFrame.playerName
-        local result = resultsByName[playerName]
+        local result = findReport(playerName, memberFrame.unit)
         
         if result and result.hasData then
-            -- Show success status
+            memberFrame.details = result.details
+            memberFrame.reportSummary = result.summary
             memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-CheckBox-Check")
             memberFrame.statusIcon:SetVertexColor(0, 1, 0, 1) -- Green for success
             memberFrame.statusText:SetText(result.summary or "Complete")
             memberFrame.statusText:SetTextColor(0, 1, 0, 1)
         elseif result then
-            -- Show failed status
+            memberFrame.details = result.details
+            memberFrame.reportSummary = result.summary
             memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-StopButton")
             memberFrame.statusIcon:SetVertexColor(1, 0, 0, 1) -- Red for failed
-            memberFrame.statusText:SetText(result.summary or "Failed")
+            local failText = result.reason or result.summary or "Failed"
+            memberFrame.statusText:SetText(failText)
             memberFrame.statusText:SetTextColor(1, 0, 0, 1)
         else
-            -- No previous data for this member
+            memberFrame.details = nil
+            memberFrame.reportSummary = nil
             memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-MinusButton-Up")
             memberFrame.statusIcon:SetVertexColor(0.5, 0.5, 0.5, 1) -- Gray for not scanned
             memberFrame.statusText:SetText("Not scanned")
             memberFrame.statusText:SetTextColor(0.7, 0.7, 0.7, 1)
         end
     end
+end
+
+function UIContentCreators.showMemberDetails(uiElements, memberFrame)
+    if not uiElements or not memberFrame then
+        return
+    end
+
+    local name = memberFrame.playerName or "Unknown"
+    local details = memberFrame.details
+    local summary = memberFrame.reportSummary or memberFrame.statusText and memberFrame.statusText:GetText() or "No scan data"
+
+    local lines = {
+        "|cffadd8e6" .. name .. "|r",
+        summary,
+        ""
+    }
+
+    if details and details.gearDetails and #details.gearDetails > 0 then
+        table.insert(lines, "|cffadd8e6=== GEAR ISSUES ===|r")
+        for _, detail in ipairs(details.gearDetails) do
+            table.insert(lines, detail)
+        end
+    elseif details and details.totalIssues == 0 then
+        table.insert(lines, "|cff00ff00No gear issues detected.|r")
+    elseif memberFrame.statusText and memberFrame.statusText:GetText() == "Not scanned" then
+        table.insert(lines, "This player has not been scanned yet.")
+    else
+        table.insert(lines, "No detailed issue list available. Run a fresh scan.")
+    end
+
+    table.insert(lines, "")
+    table.insert(lines, "|cffaaaaaaClick another player to inspect their results.|r")
+
+    UIContentCreators.setAnalysisMessage(uiElements, table.concat(lines, "\n"))
 end
 
 function UIContentCreators.showInspectionStatus(uiElements, status, headerMessage)
@@ -201,8 +263,11 @@ function UIContentCreators.initializeGroupMemberDisplay(uiElements)
     local yOffset = -10
     for i, unit in ipairs(groupMembers) do
         local memberFrame = UIContentCreators.createMemberDisplayFrame(uiElements.scrollChild, unit, i, yOffset)
-        table.insert(uiElements.memberFrames, memberFrame)
-        yOffset = yOffset - 25
+        if memberFrame then
+            memberFrame.uiElements = uiElements
+            table.insert(uiElements.memberFrames, memberFrame)
+            yOffset = yOffset - 25
+        end
     end
     
     -- Update scroll child height
@@ -216,15 +281,22 @@ function UIContentCreators.createMemberDisplayFrame(parent, unit, index, yOffset
     if not UIHelpers or not UI_CONSTANTS then
         return nil
     end
+
+    local InspectionUnits = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUnits
+    local fullName = (InspectionUnits and InspectionUnits.GetUnitFullName and InspectionUnits:GetUnitFullName(unit))
+        or UnitName(unit)
+        or "Unknown"
+    local shortName = UnitName(unit) or "Unknown"
     
-    local frame = CreateFrame("Frame", nil, parent)
+    local frame = CreateFrame("Button", nil, parent)
     frame:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 60, 20)
     frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, yOffset)
+    frame:RegisterForClicks("LeftButtonUp")
+    frame:SetHighlightTexture("Interface/Buttons/UI-Listbox-Highlight", "ADD")
     
-    -- Member name
-    local nameText = UnitName(unit) or "Unknown"
+    -- Member name (show short name; store full name for stable matching)
     local nameLabel = UIHelpers.createFontString(frame, "OVERLAY", "GameFontNormal",
-        nameText, "LEFT", 0, 0)
+        shortName, "LEFT", 0, 0)
     
     -- Status indicator
     local statusIcon = frame:CreateTexture(nil, "OVERLAY")
@@ -242,14 +314,51 @@ function UIContentCreators.createMemberDisplayFrame(parent, unit, index, yOffset
     frame.statusIcon = statusIcon
     frame.statusText = statusText
     frame.unit = unit
-    frame.playerName = nameText
+    frame.playerName = fullName
+    frame.details = nil
+    frame.reportSummary = nil
+
+    frame:SetScript("OnClick", function()
+        local parentFrame = parent:GetParent() and parent:GetParent():GetParent()
+        -- Prefer the uiElements stashed on the group validation content frame.
+        local uiElements = frame.uiElements
+        if uiElements then
+            UIContentCreators.showMemberDetails(uiElements, frame)
+        end
+    end)
+
+    frame:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(shortName, 1, 1, 1)
+        GameTooltip:AddLine("Click to view gear issue details", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    frame:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
     
     return frame
 end
 
-function UIContentCreators.updateMemberStatus(uiElements, unit, status, resultText)
+function UIContentCreators.updateMemberStatus(uiElements, unit, status, resultText, details)
+    local InspectionUnits = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUnits
+    local fullName = (InspectionUnits and InspectionUnits.GetUnitFullName and InspectionUnits:GetUnitFullName(unit))
+        or UnitName(unit)
+
     for _, memberFrame in ipairs(uiElements.memberFrames) do
-        if memberFrame.unit == unit then
+        local matches = memberFrame.unit == unit
+        if not matches and InspectionUnits and InspectionUnits.NamesMatch and fullName then
+            matches = InspectionUnits:NamesMatch(memberFrame.playerName, fullName)
+        end
+
+        if matches then
+            if details ~= nil then
+                memberFrame.details = details
+            end
+            if resultText then
+                memberFrame.reportSummary = resultText
+            end
+
             if status == "scanning" then
                 memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-RefreshButton")
                 memberFrame.statusIcon:SetVertexColor(1, 0.8, 0, 1) -- Yellow for scanning
@@ -381,9 +490,13 @@ function UIContentCreators.group_validation(parentFrame)
     
     local title = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontNormalLarge",
         "Group Gear Validation", "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING)
+
+    local hint = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontDisableSmall",
+        "After scanning, click a player to view their gear issues.", "TOP", 0, -5)
+    hint:SetPoint("TOP", title, "BOTTOM", 0, -2)
     
     local controlPanel = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
-    controlPanel:SetPoint("TOP", title, "BOTTOM", 0, -10)
+    controlPanel:SetPoint("TOP", hint, "BOTTOM", 0, -8)
     controlPanel:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 60)
     controlPanel:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
@@ -437,8 +550,8 @@ function UIContentCreators.group_validation(parentFrame)
     
     -- Create scroll frame for checking results
     local scrollFrame, scrollChild = UIHelpers.createScrollFrame(parentFrame, 
-        UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 320, 
-        UI_CONSTANTS.LAYOUT.LARGE_PADDING, -130)
+        UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 300, 
+        UI_CONSTANTS.LAYOUT.LARGE_PADDING, -145)
     
     -- Analysis text (for status messages)
     local analysisText = UIHelpers.createFontString(scrollChild, "OVERLAY", "GameFontNormal",
@@ -538,12 +651,12 @@ function UIContentCreators.setupGroupValidationHandlers(uiElements)
     uiElements.scanButton:SetScript("OnClick", function()
         -- Check if in combat
         if InCombatLockdown() then
-            UIContentCreators.setAnalysisMessage(uiElements, "")
+            UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Cannot scan while you are in combat.|r")
             return
         end
         
         if not IsInGroup() and not IsInRaid() then
-            UIContentCreators.setAnalysisMessage(uiElements, "")
+            UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Join a party or raid before starting a group scan.|r")
             return
         end
         
@@ -559,10 +672,12 @@ function UIContentCreators.setupGroupValidationHandlers(uiElements)
             -- Set pause flag
             uiElements.scanPaused = true
             UIContentCreators.updateGroupValidationState(uiElements, "paused")
+            UIContentCreators.setAnalysisMessage(uiElements, "Scan paused. Click Resume to continue.")
         else -- Resume
             -- Clear pause flag and continue scanning
             uiElements.scanPaused = false
             UIContentCreators.updateGroupValidationState(uiElements, "scanning")
+            UIContentCreators.setAnalysisMessage(uiElements, "Resuming scan...")
             -- Note: The scanning will continue on the next timer tick
         end
     end)
@@ -571,14 +686,14 @@ function UIContentCreators.setupGroupValidationHandlers(uiElements)
     uiElements.rescanButton:SetScript("OnClick", function()
         -- Check if in combat
         if InCombatLockdown() then
-            UIContentCreators.setAnalysisMessage(uiElements, "")
+            UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Cannot retry while you are in combat.|r")
             return
         end
         
         -- Check if there are failed inspections to retry
         local status = InspectionUtils:GetInspectionStatus()
         if status.failedCount == 0 then
-            UIContentCreators.setAnalysisMessage(uiElements, "")
+            UIContentCreators.setAnalysisMessage(uiElements, "No failed inspections to retry.")
             return
         end
         
@@ -648,9 +763,30 @@ end
 
 function UIContentCreators.startGroupScan(uiElements)
     local InspectionUtils = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUtils
+    local InspectionUnits = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUnits
     if not InspectionUtils then
-        UIContentCreators.setAnalysisMessage(uiElements, "")
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Inspection module unavailable.|r")
         return
+    end
+
+    local function fullNameFor(unit)
+        if InspectionUnits and InspectionUnits.GetUnitFullName then
+            return InspectionUnits:GetUnitFullName(unit) or UnitName(unit) or "Unknown"
+        end
+        return UnitName(unit) or "Unknown"
+    end
+
+    local function inspectFailureReason(unit)
+        -- Important: nil means "ok to attempt inspect". Do not coerce nil into a failure string.
+        if InspectionUnits and InspectionUnits.GetInspectFailureReason then
+            return InspectionUnits:GetInspectFailureReason(unit)
+        end
+        if unit ~= "player" and UnitExists(unit) and not CanInspect(unit) then
+            if CheckInteractDistance and not CheckInteractDistance(unit, 1) then
+                return "Out of inspect range"
+            end
+        end
+        return nil
     end
 
     -- Clear scan state for current group members (fresh scan)
@@ -661,6 +797,8 @@ function UIContentCreators.startGroupScan(uiElements)
     
     -- Reset member frames to "Not scanned" status
     for _, memberFrame in ipairs(uiElements.memberFrames) do
+        memberFrame.details = nil
+        memberFrame.reportSummary = nil
         memberFrame.statusIcon:SetTexture("Interface/Buttons/UI-MinusButton-Up")
         memberFrame.statusIcon:SetVertexColor(0.5, 0.5, 0.5, 1) -- Gray for not scanned
         memberFrame.statusText:SetText("Not scanned")
@@ -676,12 +814,12 @@ function UIContentCreators.startGroupScan(uiElements)
     
     -- Check if we have any group members to scan
     if totalMembers == 0 then
-        UIContentCreators.setAnalysisMessage(uiElements, "")
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000No group members found to scan.|r")
         UIContentCreators.updateGroupValidationState(uiElements, "ready")
         return
     end
 
-    UIContentCreators.setAnalysisMessage(uiElements, "")
+    UIContentCreators.setAnalysisMessage(uiElements, "Scanning group... Click a player after the scan to view details.")
     
     -- Reset progress bar and pause flag
     UIContentCreators.updateProgress(uiElements, 0, totalMembers)
@@ -693,29 +831,93 @@ function UIContentCreators.startGroupScan(uiElements)
         inspectedMembers = 0,
         memberReports = {}
     }
+
+    local function storeFailure(unit, name, reason)
+        InspectionUtils.groupScanState[name] = {
+            hasData = false,
+            summary = "Failed - " .. reason,
+            reason = reason,
+            timestamp = time()
+        }
+
+        table.insert(results.memberReports, {
+            name = name,
+            unit = unit,
+            summary = "Failed - " .. reason,
+            reason = reason,
+            hasData = false
+        })
+
+        UIContentCreators.updateMemberStatus(uiElements, unit, "failed", reason)
+    end
+
+    local function storeSuccess(unit, name, summary, details, gearInfo)
+        results.inspectedMembers = results.inspectedMembers + 1
+
+        InspectionUtils.groupScanState[name] = {
+            hasData = true,
+            summary = summary or "Analysis completed",
+            details = details,
+            gearInfo = gearInfo,
+            timestamp = time()
+        }
+
+        table.insert(results.memberReports, {
+            name = name,
+            unit = unit,
+            summary = summary or "Analysis completed",
+            details = details,
+            hasData = true
+        })
+
+        UIContentCreators.updateMemberStatus(uiElements, unit, "success", summary or "Complete", details)
+    end
     
     -- Function to scan a single member
     local function scanMember(index)
         if index > totalMembers then
             -- All members scanned, show final results
             UIContentCreators.showGroupScanResults(uiElements, results)
+            UIContentCreators.setAnalysisMessage(uiElements,
+                "Group scan finished. Click a player above to view gear issue details.")
             return
         end
-        
-        -- If paused, wait and try again
-        if uiElements.scanPaused then
+
+        if InCombatLockdown() then
+            UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Scan waiting - you are in combat.|r")
+            uiElements.scanPaused = true
+            UIContentCreators.updateGroupValidationState(uiElements, "paused")
             C_Timer.After(0.5, function()
-                if uiElements.scanPaused then
-                    scanMember(index) -- keep waiting until unpaused
+                if InCombatLockdown() or uiElements.scanPaused then
+                    scanMember(index)
                 else
+                    UIContentCreators.updateGroupValidationState(uiElements, "scanning")
                     scanMember(index)
                 end
             end)
             return
         end
         
+        -- If paused, wait and try again
+        if uiElements.scanPaused then
+            C_Timer.After(0.5, function()
+                scanMember(index)
+            end)
+            return
+        end
+        
         local unit = groupMembers[index]
-        local name = UnitName(unit) or "Unknown"
+        if not UnitExists(unit) then
+            storeFailure(unit, "Unknown", "Player left the group")
+            scannedCount = scannedCount + 1
+            UIContentCreators.updateProgress(uiElements, scannedCount, totalMembers)
+            C_Timer.After(0.5, function()
+                scanMember(index + 1)
+            end)
+            return
+        end
+
+        local name = fullNameFor(unit)
         
         -- Track retry attempts for this member
         if not uiElements.memberRetryCount then
@@ -730,27 +932,8 @@ function UIContentCreators.startGroupScan(uiElements)
         local gearInfo = MrMythicalGearCheck.GearUtils:GetUnitGear(unit)
         
         if gearInfo then
-            -- Process the gear data immediately
-            results.inspectedMembers = results.inspectedMembers + 1
-            
-            local summary = InspectionUtils:CreatePlayerSummary(unit, name, gearInfo)
-            
-            -- Store successful scan data persistently
-            InspectionUtils.groupScanState[name] = {
-                hasData = true,
-                summary = summary or "Analysis completed",
-                gearInfo = gearInfo,
-                timestamp = time()
-            }
-            
-            table.insert(results.memberReports, {
-                name = name,
-                unit = unit,
-                summary = summary or "Analysis completed",
-                hasData = true
-            })
-            
-            UIContentCreators.updateMemberStatus(uiElements, unit, "success", summary or "Complete")
+            local summary, details = InspectionUtils:CreatePlayerSummary(unit, name, gearInfo)
+            storeSuccess(unit, name, summary, details, gearInfo)
             
             -- Update progress and move to next member
             scannedCount = scannedCount + 1
@@ -758,61 +941,38 @@ function UIContentCreators.startGroupScan(uiElements)
             
             -- Schedule next member scan with a delay
             C_Timer.After(0.5, function()
-                if uiElements.scanPaused then
-                    scanMember(index + 1) -- will re-check pause at top
-                else
-                    scanMember(index + 1)
-                end
+                scanMember(index + 1)
             end)
         else
-            -- No data, need to inspect like the targeting command does
-            
-            -- Check if we can inspect this unit
-            if not MrMythicalGearCheck.GearUtils:CanInspectUnit(unit) then
+            local reason = inspectFailureReason(unit)
+            if reason then
+                storeFailure(unit, name, reason)
                 
-                table.insert(results.memberReports, {
-                    name = name,
-                    unit = unit,
-                    summary = "Cannot inspect - not in group or out of range",
-                    hasData = false
-                })
-                
-                UIContentCreators.updateMemberStatus(uiElements, unit, "failed", "Not inspectable")
-                
-                -- Update progress and move to next member
                 scannedCount = scannedCount + 1
                 UIContentCreators.updateProgress(uiElements, scannedCount, totalMembers)
                 
-                -- Schedule next member scan with a delay
                 C_Timer.After(0.5, function()
                     scanMember(index + 1)
                 end)
                 return
             end
             
-            -- Request inspection like the targeting command does
+            -- Request inspection (NotifyInspect preferred; falls back to InspectUnit)
             UIContentCreators.updateMemberStatus(uiElements, unit, "scanning", "Inspecting...")
-            local success, errorMsg = pcall(InspectUnit, unit)
+            local notify = rawget(_G, "NotifyInspect")
+            local success, errorMsg
+            if type(notify) == "function" then
+                success, errorMsg = pcall(notify, unit)
+            else
+                success, errorMsg = pcall(InspectUnit, unit)
+            end
             
             if not success then
+                storeFailure(unit, name, "Inspection request failed" .. (errorMsg and (": " .. tostring(errorMsg)) or ""))
                 
-                -- Store failed scan state persistently
-                InspectionUtils.groupScanState[name] = {}
-                
-                table.insert(results.memberReports, {
-                    name = name,
-                    unit = unit,
-                    summary = "Inspection request failed",
-                    hasData = false
-                })
-                
-                UIContentCreators.updateMemberStatus(uiElements, unit, "failed", "Inspection failed")
-                
-                -- Update progress and move to next member
                 scannedCount = scannedCount + 1
                 UIContentCreators.updateProgress(uiElements, scannedCount, totalMembers)
                 
-                -- Schedule next member scan with a delay
                 C_Timer.After(0.5, function()
                     scanMember(index + 1)
                 end)
@@ -821,93 +981,83 @@ function UIContentCreators.startGroupScan(uiElements)
             
             -- Set up exponential backoff for inspection delay
             local memberRetryCount = 0
-            local memberMaxRetries = 5
-            local memberBaseDelay = 0.5 -- Starting delay in seconds
+            local memberMaxRetries = 6
+            local memberBaseDelay = 0.4 -- Starting delay in seconds
             
             local function attemptMemberInspectionCheck()
+                if InCombatLockdown() then
+                    UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Scan waiting - you are in combat.|r")
+                    uiElements.scanPaused = true
+                    UIContentCreators.updateGroupValidationState(uiElements, "paused")
+                    C_Timer.After(0.5, function()
+                        attemptMemberInspectionCheck()
+                    end)
+                    return
+                end
+
+                if uiElements.scanPaused then
+                    C_Timer.After(0.5, function()
+                        attemptMemberInspectionCheck()
+                    end)
+                    return
+                end
+
+                if not UnitExists(unit) then
+                    storeFailure(unit, name, "Player left the group")
+                    scannedCount = scannedCount + 1
+                    UIContentCreators.updateProgress(uiElements, scannedCount, totalMembers)
+                    C_Timer.After(0.5, function()
+                        scanMember(index + 1)
+                    end)
+                    return
+                end
+
                 memberRetryCount = memberRetryCount + 1
                 
                 local retryGearInfo = MrMythicalGearCheck.GearUtils:GetUnitGear(unit)
                 
                 if retryGearInfo then
-                    
-                    results.inspectedMembers = results.inspectedMembers + 1
-                    
-                    local summary = InspectionUtils:CreatePlayerSummary(unit, name, retryGearInfo)
-                    
-                    -- Store successful scan data persistently
-                    InspectionUtils.groupScanState[name] = {
-                        hasData = true,
-                        summary = summary or "Analysis completed",
-                        gearInfo = retryGearInfo,
-                        timestamp = time()
-                    }
-                    
-                    table.insert(results.memberReports, {
-                        name = name,
-                        unit = unit,
-                        summary = summary or "Analysis completed",
-                        hasData = true
-                    })
+                    local summary, details = InspectionUtils:CreatePlayerSummary(unit, name, retryGearInfo)
+                    storeSuccess(unit, name, summary, details, retryGearInfo)
 
-                    UIContentCreators.updateMemberStatus(uiElements, unit, "success", summary or "Complete")                    -- Update progress and move to next member
                     scannedCount = scannedCount + 1
                     UIContentCreators.updateProgress(uiElements, scannedCount, totalMembers)
                     
-                    -- Schedule next member scan with a delay
                     C_Timer.After(0.5, function()
                         scanMember(index + 1)
                     end)
                 elseif memberRetryCount < memberMaxRetries then
-                    -- Calculate exponential backoff delay
-                    local delay = memberBaseDelay * (2 ^ (memberRetryCount - 1))
+                    -- Re-request inspect periodically in case the first notify was dropped.
+                    if memberRetryCount == 3 and type(notify) == "function" then
+                        pcall(notify, unit)
+                    end
+                    local delay = memberBaseDelay * (2 ^ math.min(memberRetryCount - 1, 3))
                     
                     C_Timer.After(delay, function()
-                        if uiElements.scanPaused then
-                            scanMember(index) -- re-check pause, don't continue retry until unpaused
-                        else
-                            attemptMemberInspectionCheck()
-                        end
+                        attemptMemberInspectionCheck()
                     end)
                 else
+                    local finalReason = "Timed out waiting for inspect data"
+                    if CheckInteractDistance and not CheckInteractDistance(unit, 1) then
+                        finalReason = "Out of inspect range"
+                    elseif not CanInspect(unit) then
+                        finalReason = "Cannot inspect this player"
+                    end
+                    storeFailure(unit, name, finalReason)
                     
-                    -- Store failed scan state persistently (empty table indicates failed/unscanned)
-                    InspectionUtils.groupScanState[name] = {}
-                    
-                    table.insert(results.memberReports, {
-                        name = name,
-                        unit = unit,
-                        summary = "Inspection failed - no gear data received",
-                        hasData = false
-                    })
-                    
-                    UIContentCreators.updateMemberStatus(uiElements, unit, "failed", "Inspection failed")
-                    
-                    -- Update progress and move to next member
                     scannedCount = scannedCount + 1
                     UIContentCreators.updateProgress(uiElements, scannedCount, totalMembers)
                     
-                    -- Schedule next member scan with a delay
                     C_Timer.After(0.5, function()
-                        if uiElements.scanPaused then
-                            scanMember(index + 1)
-                        else
-                            scanMember(index + 1)
-                        end
+                        scanMember(index + 1)
                     end)
                 end
             end
             
             -- Start the first check after initial delay
             C_Timer.After(memberBaseDelay, function()
-                if uiElements.scanPaused then
-                    scanMember(index)
-                else
-                    attemptMemberInspectionCheck()
-                end
+                attemptMemberInspectionCheck()
             end)
-
-
         end
     end
     
@@ -918,14 +1068,20 @@ end
 function UIContentCreators.startRescan(uiElements)
     local InspectionUtils = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUtils
     if not InspectionUtils then
-        UIContentCreators.setAnalysisMessage(uiElements, "")
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Inspection module unavailable.|r")
+        return
+    end
+
+    if InCombatLockdown() then
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Cannot retry while you are in combat.|r")
+        UIContentCreators.updateGroupValidationState(uiElements, "completed")
         return
     end
 
     -- Check if there are failed inspections to retry
     local status = InspectionUtils:GetInspectionStatus()
     if status.failedCount == 0 then
-        UIContentCreators.setAnalysisMessage(uiElements, "")
+        UIContentCreators.setAnalysisMessage(uiElements, "No failed inspections to retry.")
         UIContentCreators.updateGroupValidationState(uiElements, "completed")
         return
     end
@@ -949,6 +1105,8 @@ function UIContentCreators.startRescan(uiElements)
             UIContentCreators.showInspectionStatus(uiElements, updatedStatus)
             UIContentCreators.updateMemberFramesWithResults(uiElements, updatedStatus.memberReports)
             UIContentCreators.updateGroupValidationState(uiElements, "completed")
+            UIContentCreators.setAnalysisMessage(uiElements,
+                "Retry finished. Click a player above to view gear issue details.")
         end,
         function(progress)
             -- Progress callback
@@ -959,6 +1117,8 @@ function UIContentCreators.startRescan(uiElements)
                 -- Update member frame for this player
                 local status = InspectionUtils:GetInspectionStatus()
                 UIContentCreators.updateMemberFramesWithResults(uiElements, status.memberReports)
+            elseif progress.type == "error" and progress.message then
+                UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000" .. progress.message .. "|r")
             end
         end
     )

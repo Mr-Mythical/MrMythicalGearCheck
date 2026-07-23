@@ -33,6 +33,13 @@ local DROPDOWN_OPTIONS = {
     MIN_GEM_RANK = {
         { text = "Rank 1 or higher (Any Quality)", value = 1 },
         { text = "Rank 2 only (High Quality)",     value = 2 }
+    },
+    LOW_DURABILITY_THRESHOLD = {
+        { text = "Below 20%", value = 20 },
+        { text = "Below 30%", value = 30 },
+        { text = "Below 40%", value = 40 },
+        { text = "Below 50%", value = 50 },
+        { text = "Below 75%", value = 75 }
     }
 }
 
@@ -43,7 +50,13 @@ local TOOLTIPS = {
 
     MIN_GEM_RANK = "Set the minimum required gem quality rank.\n\n" ..
         "|cffffffffRank 1:|r Basic quality gems (Tier 1)\n" ..
-        "|cffffffffRank 2:|r High quality gems (Tier 2)"
+        "|cffffffffRank 2:|r High quality gems (Tier 2)",
+
+    LOW_DURABILITY_THRESHOLD = "Flag gear as needing repair when durability falls below this percentage.\n\n" ..
+        "Applies to your personal gear check and character panel summary.",
+
+    REQUIRE_PREMIUM_ENCHANTS = "When enabled, cheap enchant materials are flagged on slots that use a premium vs cheap material split.\n\n" ..
+        "|cffaaaaaaCurrent expansion uses rank-based enchants only, so this setting has no effect until material-quality slots are configured again.|r"
 }
 
 --- Creates a setting with appropriate UI element
@@ -146,18 +159,18 @@ function Options.createSettingsPanel()
                     options = DROPDOWN_OPTIONS.MIN_ENCHANT_RANK
                 },
                 {
-                    name = "Require High Quality Enchant Materials",
-                    key = "REQUIRE_PREMIUM_ENCHANTS",
-                    type = "boolean",
-                    tooltip =
-                    "When enabled, low-cost enchant materials are flagged as issues."
-                },
-                {
                     name = "Minimum Gem Rank",
                     key = "MIN_GEM_RANK",
                     type = "number",
                     tooltip = TOOLTIPS.MIN_GEM_RANK,
                     options = DROPDOWN_OPTIONS.MIN_GEM_RANK
+                },
+                {
+                    name = "Low Durability Threshold",
+                    key = "LOW_DURABILITY_THRESHOLD",
+                    type = "number",
+                    tooltip = TOOLTIPS.LOW_DURABILITY_THRESHOLD,
+                    options = DROPDOWN_OPTIONS.LOW_DURABILITY_THRESHOLD
                 },
                 {
                     name = "Show Gear Summary on Character Panel",
@@ -174,6 +187,17 @@ function Options.createSettingsPanel()
             }
         }
     }
+
+    -- Premium material checks are inactive while QUALITY_CHECK_SLOTS is empty (Exp 11).
+    local configData = _G.MrMythicalGearCheck and _G.MrMythicalGearCheck.ConfigData
+    if configData and configData.HasEnchantQualityChecks and configData:HasEnchantQualityChecks() then
+        table.insert(settingsConfig[1].settings, 2, {
+            name = "Require High Quality Enchant Materials",
+            key = "REQUIRE_PREMIUM_ENCHANTS",
+            type = "boolean",
+            tooltip = TOOLTIPS.REQUIRE_PREMIUM_ENCHANTS
+        })
+    end
 
     -- Create all settings
     for _, section in ipairs(settingsConfig) do

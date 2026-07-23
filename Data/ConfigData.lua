@@ -48,7 +48,8 @@ ConfigData.CONSTANTS = {
     },
     
     -- Slots where enchant material quality (premium vs cheap) matters.
-    -- Expansion 11 has a 2-rank system and does not use the previous premium material split.
+    -- Expansion 11 uses a 2-rank system; leave empty to disable premium-material checks.
+    -- Re-populate when an expansion reintroduces cheap vs premium materials per slot.
     QUALITY_CHECK_SLOTS = {
     },
 
@@ -85,11 +86,42 @@ function ConfigData:GetMinEnchantRank()
     return db.MIN_ENCHANT_RANK or getDefaults().MIN_ENCHANT_RANK or 2
 end
 
+--- Returns true when any slots are configured for premium-material enchant checks
+--- @return boolean
+function ConfigData:HasEnchantQualityChecks()
+    local slots = self.CONSTANTS and self.CONSTANTS.QUALITY_CHECK_SLOTS
+    if not slots then
+        return false
+    end
+    for _ in pairs(slots) do
+        return true
+    end
+    return false
+end
+
 --- Gets whether high quality enchant materials are required
 --- @return boolean Whether to require high quality materials (defaults to false)
 function ConfigData:RequirePremiumEnchants()
+    -- Exp 11 has no quality-check slots; keep stored preference but treat as inactive.
+    if not self:HasEnchantQualityChecks() then
+        return false
+    end
     local db = MrMythicalGearCheckDB or {}
-    return db.REQUIRE_PREMIUM_ENCHANTS or getDefaults().REQUIRE_PREMIUM_ENCHANTS or false
+    if db.REQUIRE_PREMIUM_ENCHANTS == nil then
+        return getDefaults().REQUIRE_PREMIUM_ENCHANTS or false
+    end
+    return db.REQUIRE_PREMIUM_ENCHANTS
+end
+
+--- Whether premium-material enchant checks apply to a slot
+--- @param slotId number Equipment slot ID
+--- @return boolean
+function ConfigData:ShouldCheckEnchantQuality(slotId)
+    if not slotId or not self:RequirePremiumEnchants() then
+        return false
+    end
+    local slots = self.CONSTANTS and self.CONSTANTS.QUALITY_CHECK_SLOTS
+    return slots and slots[slotId] == true
 end
 
 --- Gets the minimum gem rank requirement

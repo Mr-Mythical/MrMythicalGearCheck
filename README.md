@@ -27,8 +27,12 @@ Perform detailed inspections of player equipment to identify common issues:
 
 `enchantments.json` is the source of truth for gem/enchant data. The addon consumes a generated Lua mirror file at runtime:
 
+- Place `enchantments.json` at the repo root (array of entry objects, or `{ "entries": [...] }`)
 - Generate/update Lua data: `node scripts/generate_enchantments_lua.js`
+- Optional custom path: `node scripts/generate_enchantments_lua.js path/to/enchantments.json`
 - Generated file: `Data/EnchantmentsData.lua`
+
+Keep `enchantments.json` updated on patch/season changes, then regenerate before releasing.
 
 ## Download
 

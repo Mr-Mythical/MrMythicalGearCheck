@@ -120,10 +120,10 @@ local EnchantValidationRule = {
                 local enchantInfo = enchantData:GetEnchantInfo(itemAnalysis.enchant.id)
                 if enchantInfo then
                     local minRank = config:GetMinEnchantRank()
-                    local requirePremium = config:RequirePremiumEnchants()
+                    local checkQuality = config.ShouldCheckEnchantQuality and config:ShouldCheckEnchantQuality(slotId)
 
                     local hasRankIssue = enchantInfo.rank < minRank
-                    local hasQualityIssue = requirePremium and enchantInfo.quality == "cheap"
+                    local hasQualityIssue = checkQuality and enchantInfo.quality == "cheap"
 
                     if hasRankIssue or hasQualityIssue then
                         local message = ""
@@ -353,14 +353,13 @@ function GearUtils:AnalyzeGear(unit, mode)
 
     mode = mode or "basic"
     
-    -- For non-player units, handle inspection
+    -- For non-player units, prefer already-available inspect data, then request inspect.
     if unit ~= "player" then
-        if not self:CanInspectUnit(unit) then
-            return nil
-        end
-        
-        -- Trigger inspection if needed
-        if not self:IsUnitInspected(unit) then
+        local hasInspectData = self:IsUnitInspected(unit)
+        if not hasInspectData then
+            if not self:CanInspectUnit(unit) then
+                return nil
+            end
             self:RequestInspection(unit)
             return nil
         end
@@ -787,8 +786,12 @@ function GearUtils:CanInspectUnit(unit)
         return false
     end
 
-    -- Group members can generally be inspected
-    return UnitInParty(unit) or UnitInRaid(unit) or true
+    if unit == "player" then
+        return true
+    end
+
+    -- CanInspect may return 1/nil on some clients; treat any truthy value as success.
+    return CanInspect(unit) and true or false
 end
 
 --- Checks if a unit has been recently inspected
@@ -814,7 +817,16 @@ end
 --- Safely requests inspection of a unit
 --- @param unit string Unit ID to inspect
 function GearUtils:RequestInspection(unit)
-    if not self:CanInspectUnit(unit) or InCombatLockdown() then
+    if unit == "player" or InCombatLockdown() then
+        return
+    end
+
+    if not UnitExists(unit) or not UnitIsPlayer(unit) then
+        return
+    end
+
+    -- Prefer cached inspect data path even when CanInspect is momentarily false.
+    if not self:CanInspectUnit(unit) and not self:IsUnitInspected(unit) then
         return
     end
 
@@ -823,8 +835,14 @@ function GearUtils:RequestInspection(unit)
         return
     end
 
-    -- Safely request inspection
-    local success, err = pcall(InspectUnit, unit)
+    -- NotifyInspect is the background-scan API; InspectUnit opens the inspect UI.
+    local notify = rawget(_G, "NotifyInspect")
+    local success, err
+    if type(notify) == "function" then
+        success, err = pcall(notify, unit)
+    else
+        success, err = pcall(InspectUnit, unit)
+    end
     if not success then
     end
 end
