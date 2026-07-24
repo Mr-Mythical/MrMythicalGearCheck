@@ -478,32 +478,56 @@ function InspectionUtils:ProcessInspectionSuccess(unit, name)
     
     -- Generate and show summary for this player
     local summary, details = self:CreatePlayerSummary(unit, name)
-    if summary then
-        
-        -- Send character overview through UI progress callback
-        self:SendProgressCallback({
-            type = isRescan and "rescan_complete" or "character_complete",
-            playerName = name,
-            summary = summary,
-            details = details,
-            message = name .. ": " .. summary
-        })
-    else
-        
-        -- Send basic completion through UI progress callback
-        self:SendProgressCallback({
-            type = isRescan and "rescan_complete" or "character_complete",
-            playerName = name,
-            summary = "Inspection completed",
-            details = details,
-            message = name .. ": Inspection completed"
-        })
+    if not summary then
+        -- Inspect event fired before item links finished caching; retry shortly.
+        self.currentInspectionUnit = unit
+        self.currentInspectionName = name
+        scheduleInspectionTimeout(unit, name, isRescan)
+        C_Timer.After(0.4, function()
+            if self.currentInspectionUnit == unit and self.currentInspectionName == name then
+                local retrySummary, retryDetails = self:CreatePlayerSummary(unit, name)
+                if retrySummary then
+                    cancelInspectionTimeout()
+                    self:SendProgressCallback({
+                        type = isRescan and "rescan_complete" or "character_complete",
+                        playerName = name,
+                        summary = retrySummary,
+                        details = retryDetails,
+                        message = name .. ": " .. retrySummary
+                    })
+                    self.groupScanState[name] = {
+                        hasData = true,
+                        summary = retrySummary,
+                        details = retryDetails,
+                        timestamp = time()
+                    }
+                    self.currentInspectionUnit = nil
+                    self.currentInspectionName = nil
+                    self:CloseInspectWindow()
+                    C_Timer.After(0.5, function()
+                        self:StartNextInspection(isRescan and true or false)
+                    end)
+                else
+                    -- Let the timeout handler mark failure if data never completes.
+                end
+            end
+        end)
+        return
     end
+        
+    -- Send character overview through UI progress callback
+    self:SendProgressCallback({
+        type = isRescan and "rescan_complete" or "character_complete",
+        playerName = name,
+        summary = summary,
+        details = details,
+        message = name .. ": " .. summary
+    })
     
     -- Store successful scan data in persistent state
     self.groupScanState[name] = {
         hasData = true,
-        summary = summary or "Inspection completed",
+        summary = summary,
         details = details,
         timestamp = time()
     }

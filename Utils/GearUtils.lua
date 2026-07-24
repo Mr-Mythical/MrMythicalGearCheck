@@ -265,9 +265,15 @@ local DurabilityValidationRule = {
     end
 }
 
---- Empty slot validation rule 
+--- Empty slot validation rule
+--- Only applied to the local player. Inspect targets often report nil links while
+--- item data is still caching, which caused false "empty slot" warnings in group scans.
 local EmptySlotValidationRule = {
-    appliesTo = function(self, itemAnalysis, slotId)
+    appliesTo = function(self, itemAnalysis, slotId, playerClass, unit)
+        if unit and unit ~= "player" then
+            return false
+        end
+
         -- Apply to empty slots, but skip off-hand as it's often intentionally empty
         local config = getDependency("ConfigData")
         local offHandSlot = (config and config.CONSTANTS and config.CONSTANTS.SLOT_IDS and config.CONSTANTS.SLOT_IDS.OFF_HAND) or 17
@@ -299,13 +305,14 @@ local ValidationEngine = {
     --- @param slotId number Equipment slot ID
     --- @param config table Configuration data
     --- @param playerClass string Player class name
+    --- @param unit string|nil Unit being analyzed ("player", "party1", ...)
     --- @return table Array of all issues found
-    validateItem = function(self, itemAnalysis, slotId, config, playerClass)
+    validateItem = function(self, itemAnalysis, slotId, config, playerClass, unit)
         local allIssues = {}
 
         for _, rule in ipairs(self.rules) do
-            if rule:appliesTo(itemAnalysis, slotId, playerClass) then
-                local issues = rule:validate(itemAnalysis, slotId, config, playerClass)
+            if rule:appliesTo(itemAnalysis, slotId, playerClass, unit) then
+                local issues = rule:validate(itemAnalysis, slotId, config, playerClass, unit)
                 for _, issue in ipairs(issues) do
                     table.insert(allIssues, issue)
                 end
@@ -342,10 +349,69 @@ function GearUtils:GetItemDurability(slot)
     }
 end
 
+--- Counts equipped / still-loading inventory slots for a unit
+--- @param unit string
+--- @return number slotsWithLink
+--- @return number slotsWithItemId
+--- @return number loadingSlots item id present but link not ready yet
+function GearUtils:CountEquippedSlots(unit)
+    local GearData = getDependency("GearData")
+    local withLink = 0
+    local withId = 0
+    local loading = 0
+
+    if not GearData or not GearData.SLOT_NAMES then
+        return 0, 0, 0
+    end
+
+    for slotId, _ in pairs(GearData.SLOT_NAMES) do
+        local itemLink = GetInventoryItemLink(unit, slotId)
+        local itemId = GetInventoryItemID and GetInventoryItemID(unit, slotId) or nil
+
+        if itemLink then
+            withLink = withLink + 1
+            withId = withId + 1
+        elseif itemId and itemId > 0 then
+            withId = withId + 1
+            loading = loading + 1
+            -- Touch the cache so a later retry is more likely to get a full link.
+            if C_Item and C_Item.RequestLoadItemDataByID then
+                pcall(C_Item.RequestLoadItemDataByID, itemId)
+            elseif GetItemInfo then
+                pcall(GetItemInfo, itemId)
+            end
+        end
+    end
+
+    return withLink, withId, loading
+end
+
+--- True when inspect inventory data looks complete enough to analyze
+--- @param unit string
+--- @return boolean
+function GearUtils:IsInspectDataComplete(unit)
+    if not unit or unit == "player" then
+        return true
+    end
+
+    local withLink, withId, loading = self:CountEquippedSlots(unit)
+    -- Links still resolving from item cache.
+    if loading > 0 then
+        return false
+    end
+    -- Need a meaningful set of equipped items before trusting the inspect snapshot.
+    -- Fresh/low characters can be below this; callers will time out rather than invent empty slots.
+    if withLink < 6 and withId < 6 then
+        return false
+    end
+
+    return withLink > 0
+end
+
 --- Unified gear analysis function that supports both basic and detailed modes
 --- @param unit string Unit ID ("player", "party1", "target", etc.)
 --- @param mode string "basic" for simple data collection, "detailed" for full analysis
---- @return table|nil Gear analysis results or nil if failed  
+--- @return table|nil Gear analysis results or nil if failed / inspect incomplete
 function GearUtils:AnalyzeGear(unit, mode)
     if not unit or not UnitExists(unit) then
         return nil
@@ -361,6 +427,11 @@ function GearUtils:AnalyzeGear(unit, mode)
                 return nil
             end
             self:RequestInspection(unit)
+            return nil
+        end
+
+        -- Partial inspect snapshots cause false empty-slot / missing-enchant noise.
+        if not self:IsInspectDataComplete(unit) then
             return nil
         end
     end
@@ -400,19 +471,22 @@ function GearUtils:AnalyzeGear(unit, mode)
     -- Process each equipment slot
     for slotId, slotName in pairs(GearData.SLOT_NAMES) do
         local itemLink = GetInventoryItemLink(unit, slotId)
+        local itemId = GetInventoryItemID and GetInventoryItemID(unit, slotId) or nil
         local itemAnalysis = nil
+
+        -- Item id without link means cache is still loading; wait instead of mis-reporting.
+        if (not itemLink) and itemId and itemId > 0 then
+            return nil
+        end
         
         if itemLink then
-            -- Analyze the item
             itemAnalysis = self:AnalyzeItemInternal(itemLink, slotId, playerClass)
         end
         
         if mode == "basic" then
-            -- Store basic item info (nil for empty slots)
             results[slotId] = itemAnalysis
         else
-            -- Detailed analysis - check for issues (including empty slots)
-            self:ProcessSlotIssues(itemAnalysis, slotId, slotName, playerClass, results)
+            self:ProcessSlotIssues(itemAnalysis, slotId, slotName, playerClass, results, unit)
         end
     end
     
@@ -472,14 +546,15 @@ end
 --- @param slotName string Equipment slot name
 --- @param playerClass string Player class name
 --- @param results table Results accumulator
-function GearUtils:ProcessSlotIssues(itemAnalysis, slotId, slotName, playerClass, results)
+--- @param unit string|nil Unit being analyzed
+function GearUtils:ProcessSlotIssues(itemAnalysis, slotId, slotName, playerClass, results, unit)
     local ConfigData = getDependency("ConfigData")
     if not ConfigData then
         return
     end
     
     -- Use the validation engine to get all issues for this slot (including empty slots)
-    local issues = ValidationEngine:validateItem(itemAnalysis, slotId, ConfigData, playerClass)
+    local issues = ValidationEngine:validateItem(itemAnalysis, slotId, ConfigData, playerClass, unit)
 
     local function formatIssueWithSlot(message)
         if type(message) ~= "string" then
@@ -564,7 +639,7 @@ end
 --- @param playerClass string Player class name
 function GearUtils:CheckForGearIssues(analysis, playerClass)
     local config = getDependency("ConfigData")
-    analysis.issues = ValidationEngine:validateItem(analysis, analysis.slotId, config, playerClass)
+    analysis.issues = ValidationEngine:validateItem(analysis, analysis.slotId, config, playerClass, "player")
 end
 
 --- Gets enchant information from an item
@@ -798,20 +873,17 @@ end
 --- @param unit string Unit ID to check
 --- @return boolean True if unit was recently inspected
 function GearUtils:IsUnitInspected(unit)
-    if not unit then return false end
-
-    -- Check if we can get inventory data for this unit
-    -- This is a simple way to detect if inspection data is available
-    local hasData = false
-    for slotId = 1, 17 do
-        local itemLink = GetInventoryItemLink(unit, slotId)
-        if itemLink then
-            hasData = true
-            break
-        end
+    if not unit then
+        return false
     end
 
-    return hasData
+    if unit == "player" then
+        return true
+    end
+
+    local withLink, withId = self:CountEquippedSlots(unit)
+    -- A single cached link is too weak and caused partial analyzes; require a few slots.
+    return withLink >= 3 or withId >= 3
 end
 
 --- Safely requests inspection of a unit
@@ -928,7 +1000,7 @@ function GearUtils:GetPersonalGemEnchantIssuesReport()
 
         if itemLink then
             local itemAnalysis = self:AnalyzeItemInternal(itemLink, slotId, playerClass)
-            local slotIssues = ValidationEngine:validateItem(itemAnalysis, slotId, ConfigData, playerClass)
+            local slotIssues = ValidationEngine:validateItem(itemAnalysis, slotId, ConfigData, playerClass, "player")
 
             local enchantText = nil
             local enchantId = itemAnalysis and itemAnalysis.enchant and itemAnalysis.enchant.id or 0

@@ -94,12 +94,21 @@ function UIContentCreators.showMemberDetails(uiElements, memberFrame)
         return
     end
 
+    uiElements.selectedMemberFrame = memberFrame
+
     local name = memberFrame.playerName or "Unknown"
+    local shortName = (MrMythicalGearCheck.ReportUtils and MrMythicalGearCheck.ReportUtils:GetShortName(name)) or name
     local details = memberFrame.details
     local summary = memberFrame.reportSummary or memberFrame.statusText and memberFrame.statusText:GetText() or "No scan data"
+    local classLabel = details and details.className
+    if classLabel then
+        classLabel = " (" .. classLabel .. ")"
+    else
+        classLabel = ""
+    end
 
     local lines = {
-        "|cffadd8e6" .. name .. "|r",
+        "|cffadd8e6" .. shortName .. classLabel .. "|r",
         summary,
         ""
     }
@@ -118,9 +127,194 @@ function UIContentCreators.showMemberDetails(uiElements, memberFrame)
     end
 
     table.insert(lines, "")
-    table.insert(lines, "|cffaaaaaaClick another player to inspect their results.|r")
+    table.insert(lines, "|cffaaaaaaClick Whisper Selected to send these issues, or click another player.|r")
 
     UIContentCreators.setAnalysisMessage(uiElements, table.concat(lines, "\n"))
+
+    if uiElements.whisperButton then
+        local isSelf = memberFrame.unit and UnitIsUnit and UnitIsUnit(memberFrame.unit, "player")
+        if isSelf then
+            uiElements.whisperButton:Disable()
+        else
+            uiElements.whisperButton:Enable()
+        end
+    end
+end
+
+local function getReportUtils()
+    return MrMythicalGearCheck and MrMythicalGearCheck.ReportUtils
+end
+
+function UIContentCreators.getCurrentMemberReports(uiElements)
+    if uiElements and uiElements.lastMemberReports then
+        return uiElements.lastMemberReports
+    end
+
+    local InspectionUtils = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUtils
+    if not InspectionUtils then
+        return {}
+    end
+
+    local status = InspectionUtils:GetInspectionStatus()
+    return (status and status.memberReports) or {}
+end
+
+function UIContentCreators.refreshMemberListDisplay(uiElements)
+    if not uiElements then
+        return
+    end
+
+    local ReportUtils = getReportUtils()
+    local reports = UIContentCreators.getCurrentMemberReports(uiElements)
+    uiElements.lastMemberReports = reports
+
+    local sortMode = uiElements.sortMode or "issues_first"
+    local filterMode = uiElements.filterMode or "all"
+    local displayReports = reports
+    if ReportUtils and ReportUtils.SortAndFilterReports then
+        displayReports = ReportUtils:SortAndFilterReports(reports, sortMode, filterMode)
+    end
+
+    -- Clear existing frames
+    if uiElements.memberFrames then
+        for _, frame in ipairs(uiElements.memberFrames) do
+            frame:Hide()
+            frame:SetParent(nil)
+        end
+    end
+    uiElements.memberFrames = {}
+
+    local yOffset = -10
+    for i, report in ipairs(displayReports) do
+        local unit = report.unit
+        if unit and UnitExists(unit) then
+            local memberFrame = UIContentCreators.createMemberDisplayFrame(uiElements.scrollChild, unit, i, yOffset)
+            if memberFrame then
+                memberFrame.uiElements = uiElements
+                memberFrame.details = report.details
+                memberFrame.reportSummary = report.summary
+                memberFrame.playerName = report.name or memberFrame.playerName
+                table.insert(uiElements.memberFrames, memberFrame)
+                yOffset = yOffset - 25
+            end
+        end
+    end
+
+    UIContentCreators.updateMemberFramesWithResults(uiElements, displayReports)
+    uiElements.scrollChild:SetHeight(math.max(#displayReports * 25 + 20, 320))
+    UIContentCreators.updateGroupScanLayout(uiElements)
+    UIContentCreators.updateSortFilterLabels(uiElements)
+end
+
+function UIContentCreators.updateSortFilterLabels(uiElements)
+    if not uiElements then
+        return
+    end
+
+    local ReportUtils = getReportUtils()
+    local sortMode = uiElements.sortMode or "issues_first"
+    local filterMode = uiElements.filterMode or "all"
+
+    if uiElements.sortButton and ReportUtils then
+        uiElements.sortButton:SetText("Sort: " .. (ReportUtils.SORT_MODES[sortMode] or "Issues First"))
+    end
+    if uiElements.filterButton and ReportUtils then
+        uiElements.filterButton:SetText("Filter: " .. (ReportUtils.FILTER_MODES[filterMode] or "All"))
+    end
+end
+
+function UIContentCreators.cycleSortMode(uiElements)
+    local order = { "issues_first", "name", "class", "unscanned_first" }
+    local current = uiElements.sortMode or "issues_first"
+    local nextMode = order[1]
+    for i, mode in ipairs(order) do
+        if mode == current then
+            nextMode = order[(i % #order) + 1]
+            break
+        end
+    end
+    uiElements.sortMode = nextMode
+    UIContentCreators.refreshMemberListDisplay(uiElements)
+end
+
+function UIContentCreators.cycleFilterMode(uiElements)
+    local order = { "all", "issues_only", "perfect_only", "unscanned_only" }
+    local current = uiElements.filterMode or "all"
+    local nextMode = order[1]
+    for i, mode in ipairs(order) do
+        if mode == current then
+            nextMode = order[(i % #order) + 1]
+            break
+        end
+    end
+    uiElements.filterMode = nextMode
+    UIContentCreators.refreshMemberListDisplay(uiElements)
+end
+
+function UIContentCreators.announceGroupResults(uiElements)
+    local ReportUtils = getReportUtils()
+    if not ReportUtils then
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Report module unavailable.|r")
+        return
+    end
+
+    local reports = UIContentCreators.getCurrentMemberReports(uiElements)
+    if not reports or #reports == 0 then
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000No scan results to announce. Run a Fresh Scan first.|r")
+        return
+    end
+
+    local ok, message = ReportUtils:AnnounceToGroup(reports)
+    if ok then
+        UIContentCreators.setAnalysisMessage(uiElements, "|cff00ff00" .. message .. "|r")
+    else
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000" .. (message or "Announce failed.") .. "|r")
+    end
+end
+
+function UIContentCreators.whisperSelectedMember(uiElements)
+    local ReportUtils = getReportUtils()
+    if not ReportUtils then
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Report module unavailable.|r")
+        return
+    end
+
+    local memberFrame = uiElements.selectedMemberFrame
+    if not memberFrame then
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000Select a player first (click their name).|r")
+        return
+    end
+
+    local reports = UIContentCreators.getCurrentMemberReports(uiElements)
+    local report = nil
+    local InspectionUnits = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUnits
+    for _, candidate in ipairs(reports) do
+        if candidate.unit == memberFrame.unit
+            or (InspectionUnits and InspectionUnits.NamesMatch and InspectionUnits:NamesMatch(candidate.name, memberFrame.playerName)) then
+            report = candidate
+            break
+        end
+    end
+
+    if not report then
+        report = {
+            name = memberFrame.playerName,
+            unit = memberFrame.unit,
+            summary = memberFrame.reportSummary,
+            details = memberFrame.details,
+            hasData = memberFrame.details ~= nil,
+            reason = memberFrame.reportSummary,
+        }
+    end
+
+    local ok, message = ReportUtils:WhisperPlayerReport(report)
+    if ok then
+        UIContentCreators.showMemberDetails(uiElements, memberFrame)
+        local detailsText = uiElements.analysisText and uiElements.analysisText:GetText() or ""
+        UIContentCreators.setAnalysisMessage(uiElements, "|cff00ff00" .. message .. "|r\n\n" .. detailsText)
+    else
+        UIContentCreators.setAnalysisMessage(uiElements, "|cffff8000" .. (message or "Whisper failed.") .. "|r")
+    end
 end
 
 function UIContentCreators.showInspectionStatus(uiElements, status, headerMessage)
@@ -235,43 +429,35 @@ end
 
 function UIContentCreators.initializeGroupMemberDisplay(uiElements)
     if not uiElements then return end
-    
-    -- Clear any existing member frames
-    if uiElements.memberFrames then
-        for _, frame in ipairs(uiElements.memberFrames) do
-            frame:Hide()
-        end
-        -- Clear the table (use wipe if available, otherwise recreate)
-        if table.wipe then
-            table.wipe(uiElements.memberFrames)
-        else
-            uiElements.memberFrames = {}
-        end
-    else
-        uiElements.memberFrames = {}
-    end
-    
-    -- Get current group members
+
     local InspectionUtils = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUtils
-    if not InspectionUtils then 
-        return 
+    if not InspectionUtils then
+        return
     end
-    
-    local groupMembers = InspectionUtils:GetGroupMembers()
-    
-    -- Create member display frames
-    local yOffset = -10
-    for i, unit in ipairs(groupMembers) do
-        local memberFrame = UIContentCreators.createMemberDisplayFrame(uiElements.scrollChild, unit, i, yOffset)
-        if memberFrame then
-            memberFrame.uiElements = uiElements
-            table.insert(uiElements.memberFrames, memberFrame)
-            yOffset = yOffset - 25
+
+    local status = InspectionUtils:GetInspectionStatus()
+    local reports = (status and status.memberReports) or {}
+
+    -- If there are no scan reports yet, synthesize placeholder rows from current group.
+    if #reports == 0 then
+        local groupMembers = InspectionUtils:GetGroupMembers()
+        local InspectionUnits = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUnits
+        for _, unit in ipairs(groupMembers) do
+            local name = (InspectionUnits and InspectionUnits.GetUnitFullName and InspectionUnits:GetUnitFullName(unit))
+                or UnitName(unit)
+            table.insert(reports, {
+                name = name,
+                unit = unit,
+                summary = "Not scanned",
+                hasData = false,
+            })
         end
     end
-    
-    -- Update scroll child height
-    uiElements.scrollChild:SetHeight(math.max(#groupMembers * 25 + 20, 320))
+
+    uiElements.lastMemberReports = reports
+    uiElements.sortMode = uiElements.sortMode or "issues_first"
+    uiElements.filterMode = uiElements.filterMode or "all"
+    UIContentCreators.refreshMemberListDisplay(uiElements)
 end
 
 function UIContentCreators.createMemberDisplayFrame(parent, unit, index, yOffset)
@@ -287,16 +473,21 @@ function UIContentCreators.createMemberDisplayFrame(parent, unit, index, yOffset
         or UnitName(unit)
         or "Unknown"
     local shortName = UnitName(unit) or "Unknown"
+    local className, classFile = UnitClass(unit)
     
     local frame = CreateFrame("Button", nil, parent)
     frame:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 60, 20)
     frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, yOffset)
-    frame:RegisterForClicks("LeftButtonUp")
+    frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     frame:SetHighlightTexture("Interface/Buttons/UI-Listbox-Highlight", "ADD")
     
     -- Member name (show short name; store full name for stable matching)
     local nameLabel = UIHelpers.createFontString(frame, "OVERLAY", "GameFontNormal",
         shortName, "LEFT", 0, 0)
+    if classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile] then
+        local color = RAID_CLASS_COLORS[classFile]
+        nameLabel:SetTextColor(color.r, color.g, color.b)
+    end
     
     -- Status indicator
     local statusIcon = frame:CreateTexture(nil, "OVERLAY")
@@ -315,22 +506,32 @@ function UIContentCreators.createMemberDisplayFrame(parent, unit, index, yOffset
     frame.statusText = statusText
     frame.unit = unit
     frame.playerName = fullName
+    frame.className = className
+    frame.classFile = classFile
     frame.details = nil
     frame.reportSummary = nil
 
-    frame:SetScript("OnClick", function()
-        local parentFrame = parent:GetParent() and parent:GetParent():GetParent()
-        -- Prefer the uiElements stashed on the group validation content frame.
+    frame:SetScript("OnClick", function(_, button)
         local uiElements = frame.uiElements
-        if uiElements then
-            UIContentCreators.showMemberDetails(uiElements, frame)
+        if not uiElements then
+            return
         end
+        if button == "RightButton" then
+            uiElements.selectedMemberFrame = frame
+            UIContentCreators.whisperSelectedMember(uiElements)
+            return
+        end
+        UIContentCreators.showMemberDetails(uiElements, frame)
     end)
 
     frame:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(shortName, 1, 1, 1)
-        GameTooltip:AddLine("Click to view gear issue details", 0.7, 0.7, 0.7)
+        if className then
+            GameTooltip:AddLine(className, 0.8, 0.8, 0.8)
+        end
+        GameTooltip:AddLine("Left-click: view issues", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("Right-click: whisper issues", 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
     frame:SetScript("OnLeave", function()
@@ -390,16 +591,65 @@ function UIContentCreators.dashboard(parentFrame)
     
     local title = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontNormalLarge", 
         "Mr. Mythical Gear Check", "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING)
-    
+
+    local inGroup = IsInGroup() or IsInRaid()
+    local InspectionUtils = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUtils
+    local status = InspectionUtils and InspectionUtils:GetInspectionStatus()
+    local statusLine = "Ready to check your gear."
+    if inGroup and status and status.totalMembers and status.totalMembers > 0 then
+        local issues = 0
+        local ReportUtils = getReportUtils()
+        if status.memberReports and ReportUtils then
+            for _, report in ipairs(status.memberReports) do
+                if ReportUtils:HasIssues(report) then
+                    issues = issues + 1
+                end
+            end
+        end
+        statusLine = string.format(
+            "Group: %d/%d scanned%s",
+            status.inspectedMembers or 0,
+            status.totalMembers,
+            issues > 0 and string.format(" — %d with issues", issues) or ""
+        )
+    elseif inGroup then
+        statusLine = "In a group — open Group Check to scan members."
+    end
+
     local subtitle = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontHighlight",
-        "Personal, Group & Raid Gear Checking", "TOP", 0, -5)
-    subtitle:SetPoint("TOP", title, "BOTTOM", 0, -5)
-    
-    local welcome = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontNormal",
-        "Welcome to Mr. Mythical: Gear Check! Use the navigation panel to check your gear or validate group and raid members.", "TOP", 0, -30)
-    welcome:SetPoint("TOP", subtitle, "BOTTOM", 0, -30)
-    welcome:SetWidth(500)
-    welcome:SetJustifyH("CENTER")
+        statusLine, "TOP", 0, -5)
+    subtitle:SetPoint("TOP", title, "BOTTOM", 0, -8)
+    subtitle:SetWidth(520)
+    subtitle:SetJustifyH("CENTER")
+
+    local personalButton = CreateFrame("Button", nil, parentFrame, "UIPanelButtonTemplate")
+    personalButton:SetSize(180, 32)
+    personalButton:SetPoint("TOP", subtitle, "BOTTOM", -100, -30)
+    personalButton:SetText("Check My Gear")
+    personalButton:SetScript("OnClick", function()
+        NavigationManager.showContent("personal_gear", UnifiedUI.contentFrame)
+        if UnifiedUI.navButtons and UnifiedUI.navButtons.personal_gear then
+            NavigationManager.updateButtonStates(UnifiedUI.navButtons.personal_gear, UnifiedUI.navButtons)
+        end
+    end)
+
+    local groupButton = CreateFrame("Button", nil, parentFrame, "UIPanelButtonTemplate")
+    groupButton:SetSize(180, 32)
+    groupButton:SetPoint("TOP", subtitle, "BOTTOM", 100, -30)
+    groupButton:SetText("Check Group")
+    groupButton:SetScript("OnClick", function()
+        NavigationManager.showContent("group_validation", UnifiedUI.contentFrame)
+        if UnifiedUI.navButtons and UnifiedUI.navButtons.group_validation then
+            NavigationManager.updateButtonStates(UnifiedUI.navButtons.group_validation, UnifiedUI.navButtons)
+        end
+    end)
+
+    local tip = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontDisableSmall",
+        "Tip: from Group Check, announce results to chat or right-click a player to whisper their issues.",
+        "TOP", 0, -5)
+    tip:SetPoint("TOP", personalButton, "BOTTOM", 100, -24)
+    tip:SetWidth(520)
+    tip:SetJustifyH("CENTER")
     
     local version = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontDisableSmall",
         "Mr. Mythical: Gear Check by Braunerr", "BOTTOM", 0, UI_CONSTANTS.LAYOUT.LARGE_PADDING)
@@ -492,12 +742,12 @@ function UIContentCreators.group_validation(parentFrame)
         "Group Gear Validation", "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING)
 
     local hint = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontDisableSmall",
-        "After scanning, click a player to view their gear issues.", "TOP", 0, -5)
+        "Click a player for details. Right-click to whisper. Announce posts a summary to party/raid.", "TOP", 0, -5)
     hint:SetPoint("TOP", title, "BOTTOM", 0, -2)
     
     local controlPanel = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
     controlPanel:SetPoint("TOP", hint, "BOTTOM", 0, -8)
-    controlPanel:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 60)
+    controlPanel:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 95)
     controlPanel:SetBackdrop({
         bgFile = "Interface/Tooltips/UI-Tooltip-Background",
         edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
@@ -507,34 +757,34 @@ function UIContentCreators.group_validation(parentFrame)
     controlPanel:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
     
     local scanButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
-    scanButton:SetPoint("LEFT", controlPanel, "LEFT", 10, 0)
-    scanButton:SetSize(100, 30)
+    scanButton:SetPoint("TOPLEFT", controlPanel, "TOPLEFT", 10, -10)
+    scanButton:SetSize(95, 28)
     scanButton:SetText("Fresh Scan")
     
     local pauseButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
-    pauseButton:SetPoint("LEFT", scanButton, "RIGHT", 10, 0)
-    pauseButton:SetSize(80, 30)
+    pauseButton:SetPoint("LEFT", scanButton, "RIGHT", 6, 0)
+    pauseButton:SetSize(70, 28)
     pauseButton:SetText("Pause")
     pauseButton:Disable()
     
     local rescanButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
-    rescanButton:SetPoint("LEFT", pauseButton, "RIGHT", 10, 0)
-    rescanButton:SetSize(100, 30)
+    rescanButton:SetPoint("LEFT", pauseButton, "RIGHT", 6, 0)
+    rescanButton:SetSize(100, 28)
     rescanButton:SetText("Retry Failed")
-    rescanButton:Disable() -- Initially disabled until there are failed scans
+    rescanButton:Disable()
     
     local refreshButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
-    refreshButton:SetPoint("LEFT", rescanButton, "RIGHT", 10, 0)
-    refreshButton:SetSize(110, 30)
+    refreshButton:SetPoint("LEFT", rescanButton, "RIGHT", 6, 0)
+    refreshButton:SetSize(110, 28)
     refreshButton:SetText("Refresh Members")
     refreshButton:SetScript("OnClick", function()
         UIContentCreators.refreshGroupData(parentFrame.uiElements)
     end)
     
     local progressBar = CreateFrame("StatusBar", nil, controlPanel)
-    progressBar:SetPoint("LEFT", refreshButton, "RIGHT", 20, 0)
+    progressBar:SetPoint("LEFT", refreshButton, "RIGHT", 12, 0)
     progressBar:SetPoint("RIGHT", controlPanel, "RIGHT", -10, 0)
-    progressBar:SetHeight(20)
+    progressBar:SetHeight(18)
     progressBar:SetStatusBarTexture("Interface/TargetingFrame/UI-StatusBar")
     progressBar:SetStatusBarColor(0.2, 0.8, 0.2, 1.0)
     progressBar:SetMinMaxValues(0, 100)
@@ -544,102 +794,115 @@ function UIContentCreators.group_validation(parentFrame)
     progressBg:SetAllPoints(progressBar)
     progressBg:SetColorTexture(0.2, 0.2, 0.2, 0.8)
     
-    -- Progress text
     local progressText = UIHelpers.createFontString(progressBar, "OVERLAY", "GameFontNormalSmall",
         "Ready", "CENTER", 0, 0)
+
+    local announceButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    announceButton:SetPoint("TOPLEFT", scanButton, "BOTTOMLEFT", 0, -8)
+    announceButton:SetSize(95, 28)
+    announceButton:SetText("Announce")
+
+    local whisperButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    whisperButton:SetPoint("LEFT", announceButton, "RIGHT", 6, 0)
+    whisperButton:SetSize(120, 28)
+    whisperButton:SetText("Whisper Selected")
+    whisperButton:Disable()
+
+    local sortButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    sortButton:SetPoint("LEFT", whisperButton, "RIGHT", 6, 0)
+    sortButton:SetSize(150, 28)
+    sortButton:SetText("Sort: Issues First")
+
+    local filterButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    filterButton:SetPoint("LEFT", sortButton, "RIGHT", 6, 0)
+    filterButton:SetSize(160, 28)
+    filterButton:SetText("Filter: All Players")
     
     -- Create scroll frame for checking results
     local scrollFrame, scrollChild = UIHelpers.createScrollFrame(parentFrame, 
-        UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 300, 
-        UI_CONSTANTS.LAYOUT.LARGE_PADDING, -145)
+        UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 270, 
+        UI_CONSTANTS.LAYOUT.LARGE_PADDING, -175)
     
-    -- Analysis text (for status messages)
     local analysisText = UIHelpers.createFontString(scrollChild, "OVERLAY", "GameFontNormal",
         "", "TOPLEFT", 10, -10)
     analysisText:SetWidth(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 80)
     analysisText:SetJustifyH("LEFT")
     analysisText:SetJustifyV("TOP")
     
-    -- Store UI elements for easy access
     local uiElements = {
         scanButton = scanButton,
         pauseButton = pauseButton,
         rescanButton = rescanButton,
         refreshButton = refreshButton,
+        announceButton = announceButton,
+        whisperButton = whisperButton,
+        sortButton = sortButton,
+        filterButton = filterButton,
         progressBar = progressBar,
         progressText = progressText,
         analysisText = analysisText,
         scrollChild = scrollChild,
         scrollFrame = scrollFrame,
-        memberFrames = {} -- Store individual member display frames
+        memberFrames = {},
+        sortMode = "issues_first",
+        filterMode = "all",
+        selectedMemberFrame = nil,
+        lastMemberReports = nil,
     }
+
+    announceButton:SetScript("OnClick", function()
+        UIContentCreators.announceGroupResults(uiElements)
+    end)
+    whisperButton:SetScript("OnClick", function()
+        UIContentCreators.whisperSelectedMember(uiElements)
+    end)
+    sortButton:SetScript("OnClick", function()
+        UIContentCreators.cycleSortMode(uiElements)
+    end)
+    filterButton:SetScript("OnClick", function()
+        UIContentCreators.cycleFilterMode(uiElements)
+    end)
     
-    -- Initialize group member display
     UIContentCreators.initializeGroupMemberDisplay(uiElements)
-    
-    -- Set up button handlers
     UIContentCreators.setupGroupValidationHandlers(uiElements)
-    
-    -- Store uiElements for later access
     parentFrame.uiElements = uiElements
     
-    -- Check for existing inspection results and display them
     local InspectionUtils = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUtils
     if InspectionUtils then
         local status = InspectionUtils:GetInspectionStatus()
         if status and status.memberReports and #status.memberReports > 0 then
-            -- Display existing results
-            local successCount = 0
-            local failedCount = 0
-            
-            for _, report in ipairs(status.memberReports) do
-                if report.hasData then
-                    successCount = successCount + 1
-                else
-                    failedCount = failedCount + 1
-                end
-            end
-            
-            UIContentCreators.setAnalysisMessage(uiElements, "")
-            UIContentCreators.updateGroupScanLayout(uiElements)
-            
-            -- Update member frames with existing data
-            UIContentCreators.updateMemberFramesWithResults(uiElements, status.memberReports)
-            
-            -- Update UI state to completed so retry button gets enabled if needed
+            uiElements.lastMemberReports = status.memberReports
+            UIContentCreators.refreshMemberListDisplay(uiElements)
             UIContentCreators.updateGroupValidationState(uiElements, "completed")
-            
-            -- Update layout to position text properly below member frames
-            UIContentCreators.updateGroupScanLayout(uiElements)
+            UIContentCreators.setAnalysisMessage(uiElements,
+                "Scan results loaded. Click a player for details, or Announce to party/raid.")
             return
         end
     end
     
-    -- Initial UI state (only if no existing results)
     UIContentCreators.updateGroupValidationState(uiElements, "ready")
 end
 
 function UIContentCreators.refreshGroupData(uiElements)
     if not uiElements then return end
-    
-    -- Just refresh the group member display without clearing data
-    UIContentCreators.initializeGroupMemberDisplay(uiElements)
-    
-    -- Keep any existing scan results and just update the display
+
     local InspectionUtils = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUtils
     if InspectionUtils then
         local status = InspectionUtils:GetInspectionStatus()
+        if status and status.memberReports then
+            uiElements.lastMemberReports = status.memberReports
+        end
+    end
+
+    UIContentCreators.refreshMemberListDisplay(uiElements)
+
+    local InspectionUtils2 = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUtils
+    if InspectionUtils2 then
+        local status = InspectionUtils2:GetInspectionStatus()
         if status and status.memberReports and #status.memberReports > 0 then
-            -- Update member frames with existing data
-            UIContentCreators.updateMemberFramesWithResults(uiElements, status.memberReports)
-            
-            -- Update UI state to completed so retry button gets enabled if needed
             UIContentCreators.updateGroupValidationState(uiElements, "completed")
         end
     end
-    
-    -- Update layout
-    UIContentCreators.updateGroupScanLayout(uiElements)
 end
 
 -- Group checking control handlers
@@ -877,9 +1140,11 @@ function UIContentCreators.startGroupScan(uiElements)
     local function scanMember(index)
         if index > totalMembers then
             -- All members scanned, show final results
+            uiElements.lastMemberReports = results.memberReports
+            UIContentCreators.refreshMemberListDisplay(uiElements)
             UIContentCreators.showGroupScanResults(uiElements, results)
             UIContentCreators.setAnalysisMessage(uiElements,
-                "Group scan finished. Click a player above to view gear issue details.")
+                "Group scan finished. Click a player for details, Announce to chat, or right-click to whisper.")
             return
         end
 
@@ -933,17 +1198,33 @@ function UIContentCreators.startGroupScan(uiElements)
         
         if gearInfo then
             local summary, details = InspectionUtils:CreatePlayerSummary(unit, name, gearInfo)
-            storeSuccess(unit, name, summary, details, gearInfo)
-            
-            -- Update progress and move to next member
-            scannedCount = scannedCount + 1
-            UIContentCreators.updateProgress(uiElements, scannedCount, totalMembers)
-            
-            -- Schedule next member scan with a delay
-            C_Timer.After(0.5, function()
-                scanMember(index + 1)
-            end)
-        else
+            if not summary then
+                uiElements.memberLoadRetryCount = uiElements.memberLoadRetryCount or {}
+                local loadTries = (uiElements.memberLoadRetryCount[index] or 0) + 1
+                uiElements.memberLoadRetryCount[index] = loadTries
+                if loadTries <= 8 then
+                    UIContentCreators.updateMemberStatus(uiElements, unit, "scanning", "Loading items...")
+                    C_Timer.After(0.35, function()
+                        scanMember(index)
+                    end)
+                    return
+                end
+                -- Fall through to inspect/retry path rather than publishing a partial snapshot.
+                gearInfo = nil
+            else
+                storeSuccess(unit, name, summary, details, gearInfo)
+                
+                scannedCount = scannedCount + 1
+                UIContentCreators.updateProgress(uiElements, scannedCount, totalMembers)
+                
+                C_Timer.After(0.5, function()
+                    scanMember(index + 1)
+                end)
+                return
+            end
+        end
+
+        if not gearInfo then
             local reason = inspectFailureReason(unit)
             if reason then
                 storeFailure(unit, name, reason)
@@ -981,7 +1262,7 @@ function UIContentCreators.startGroupScan(uiElements)
             
             -- Set up exponential backoff for inspection delay
             local memberRetryCount = 0
-            local memberMaxRetries = 6
+            local memberMaxRetries = 8
             local memberBaseDelay = 0.4 -- Starting delay in seconds
             
             local function attemptMemberInspectionCheck()
@@ -1015,9 +1296,12 @@ function UIContentCreators.startGroupScan(uiElements)
                 memberRetryCount = memberRetryCount + 1
                 
                 local retryGearInfo = MrMythicalGearCheck.GearUtils:GetUnitGear(unit)
-                
+                local summary, details
                 if retryGearInfo then
-                    local summary, details = InspectionUtils:CreatePlayerSummary(unit, name, retryGearInfo)
+                    summary, details = InspectionUtils:CreatePlayerSummary(unit, name, retryGearInfo)
+                end
+
+                if retryGearInfo and summary then
                     storeSuccess(unit, name, summary, details, retryGearInfo)
 
                     scannedCount = scannedCount + 1
@@ -1102,11 +1386,14 @@ function UIContentCreators.startRescan(uiElements)
         function(updatedStatus)
             UIContentCreators.updateProgress(uiElements, totalToRescan, totalToRescan)
             uiElements.progressText:SetText("Complete")
+            if updatedStatus and updatedStatus.memberReports then
+                uiElements.lastMemberReports = updatedStatus.memberReports
+            end
+            UIContentCreators.refreshMemberListDisplay(uiElements)
             UIContentCreators.showInspectionStatus(uiElements, updatedStatus)
-            UIContentCreators.updateMemberFramesWithResults(uiElements, updatedStatus.memberReports)
             UIContentCreators.updateGroupValidationState(uiElements, "completed")
             UIContentCreators.setAnalysisMessage(uiElements,
-                "Retry finished. Click a player above to view gear issue details.")
+                "Retry finished. Click a player for details, or Announce to party/raid.")
         end,
         function(progress)
             -- Progress callback
@@ -1216,15 +1503,10 @@ end
 
 function NavigationManager.createButtons(navPanel, contentFrame)
     local navButtons = {}
-    local UI_CONSTANTS = getUIConstants()
     
     for _, buttonInfo in ipairs(NavigationManager.getButtonData()) do
         local button = NavigationManager.createNavigationButton(navPanel, buttonInfo, contentFrame, navButtons)
         navButtons[buttonInfo.id] = button
-        
-        if buttonInfo.id == "dashboard" then
-            button:SetNormalFontObject("GameFontHighlight")
-        end
     end
     
     return navButtons
@@ -1304,6 +1586,13 @@ function NavigationManager.showContent(contentType, contentFrame)
     end
 end
 
+local function getDefaultContentType()
+    if IsInGroup() or IsInRaid() then
+        return "group_validation"
+    end
+    return "personal_gear"
+end
+
 -- Delayed UI initialization to ensure all dependencies are loaded
 local function initializeUI()
     local UIHelpers = getUIHelpers()
@@ -1335,9 +1624,11 @@ local function initializeUI()
         UnifiedUI:Hide()
     end)
     
-    -- Initialize default content
-    if UI_CONSTANTS then
-        NavigationManager.showContent("dashboard", contentFrame)
+    -- Default to Group Check when grouped, otherwise Personal Gear
+    local defaultContent = getDefaultContentType()
+    NavigationManager.showContent(defaultContent, contentFrame)
+    if navButtons[defaultContent] then
+        NavigationManager.updateButtonStates(navButtons[defaultContent], navButtons)
     end
 end
 
@@ -1376,14 +1667,15 @@ function UnifiedUI:Show(contentType)
     
     MainFrameManager.restoreFramePosition(self.unifiedFrame)
     self.unifiedFrame:Show()
-    
-    if contentType and contentType ~= "dashboard" then
-        NavigationManager.showContent(contentType, self.contentFrame)
-        if self.navButtons and self.navButtons[contentType] then
-            NavigationManager.updateButtonStates(self.navButtons[contentType], self.navButtons)
-        end
-    else
-        NavigationManager.showContent("dashboard", self.contentFrame)
+
+    local target = contentType
+    if not target or target == "dashboard" then
+        target = getDefaultContentType()
+    end
+
+    NavigationManager.showContent(target, self.contentFrame)
+    if self.navButtons and self.navButtons[target] then
+        NavigationManager.updateButtonStates(self.navButtons[target], self.navButtons)
     end
 end
 

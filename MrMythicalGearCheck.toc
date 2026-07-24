@@ -20,6 +20,7 @@ Utils/GearUtils.lua
 Utils/InspectionUnits.lua
 Utils/InspectionState.lua
 Utils/InspectionUtils.lua
+Utils/ReportUtils.lua
 Utils/CommandHandlers.lua
 Options.lua
 UnifiedUI.lua

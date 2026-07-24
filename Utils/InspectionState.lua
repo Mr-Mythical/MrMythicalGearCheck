@@ -54,12 +54,13 @@ end
 function InspectionState:CreatePlayerSummary(unit, playerName, gearInfo)
     local GearUtils = getDependency("GearUtils")
     if not GearUtils then
-        return "Inspection completed", nil
+        return nil, nil
     end
 
+    -- Detailed analysis returns nil while inspect links are still loading.
     local analysis = GearUtils:AnalyzeGear(unit, "detailed")
     if not analysis then
-        return "Inspection completed", nil
+        return nil, nil
     end
 
     local itemLevel = 0
@@ -78,12 +79,22 @@ function InspectionState:CreatePlayerSummary(unit, playerName, gearInfo)
         end
     end
     local avgItemLevel = itemCount > 0 and math.floor(itemLevel / itemCount) or 0
+    local className, classFile = UnitClass(unit)
 
     local details = {
         gearDetails = analysis.gearDetails or {},
         summaryLines = analysis.summaryLines or {},
         totalIssues = analysis.totalIssues or 0,
-        avgItemLevel = avgItemLevel
+        avgItemLevel = avgItemLevel,
+        className = className,
+        classFile = classFile,
+        emptySlots = analysis.emptySlots or 0,
+        unenchantedItems = analysis.unenchantedItems or 0,
+        lowRankEnchants = analysis.lowRankEnchants or 0,
+        emptyGems = analysis.emptyGems or 0,
+        lowRankGems = analysis.lowRankGems or 0,
+        suboptimalGems = analysis.suboptimalGems or 0,
+        hasLowDurability = analysis.hasLowDurability and true or false,
     }
 
     if analysis.totalIssues == 0 then
@@ -170,13 +181,19 @@ function InspectionState:GetInspectionStatus(scanQueue)
     for _, unit in ipairs(groupMembers) do
         local playerName = getUnitDisplayName(unit)
         if playerName then
+            local className, classFile = UnitClass(unit)
             local scanData = findScanDataForName(playerName)
             if scanData and scanData.hasData then
+                local details = scanData.details or {}
+                if not details.className then
+                    details.className = className
+                    details.classFile = classFile
+                end
                 table.insert(memberReports, {
                     name = playerName,
                     unit = unit,
                     summary = scanData.summary,
-                    details = scanData.details,
+                    details = details,
                     hasData = true,
                     reason = scanData.reason
                 })
@@ -196,7 +213,11 @@ function InspectionState:GetInspectionStatus(scanQueue)
                     name = playerName,
                     unit = unit,
                     summary = summary,
-                    details = scanData and scanData.details or nil,
+                    details = scanData and scanData.details or {
+                        className = className,
+                        classFile = classFile,
+                        totalIssues = 0,
+                    },
                     hasData = false,
                     reason = reason
                 })
