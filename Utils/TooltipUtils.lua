@@ -61,34 +61,29 @@ function TooltipUtils.scanTooltipForSockets(itemLink, socketKeywords)
     return emptySocketCount
 end
 
---- Scan item tooltip for off-hand related text
---- @param itemLink string Item link to scan
---- @return boolean True if item has any off-hand related text
+--- Returns true when the item is a held-in-off-hand (INVTYPE_HOLDABLE).
+--- Uses equip location from item APIs so this works on every client language.
+--- @param itemLink string Item link to inspect
+--- @return boolean
 function TooltipUtils.scanTooltipForOffHandType(itemLink)
     if not itemLink then
         return false
     end
 
-    if not _G["MrMythicalScanTooltip"] then
-        CreateFrame("GameTooltip", "MrMythicalScanTooltip", nil, "GameTooltipTemplate")
-    end
-    local tooltip = _G["MrMythicalScanTooltip"]
-    tooltip:SetOwner(UIParent, "ANCHOR_NONE")
-    tooltip:ClearLines()
-    tooltip:SetHyperlink(itemLink)
-
-    for i = 1, tooltip:NumLines() do
-        local line = _G["MrMythicalScanTooltipTextLeft" .. i]
-        if line then
-            local text = line:GetText()
-            if text and (text:find("Held In Off%-hand") or text:find("Off Hand")) then
-                tooltip:Hide()
-                return true
-            end
+    local equipLoc
+    if C_Item and C_Item.GetItemInfo then
+        local ok, result = pcall(function()
+            return select(9, C_Item.GetItemInfo(itemLink))
+        end)
+        if ok then
+            equipLoc = result
         end
     end
-    tooltip:Hide()
-    return false
+    if not equipLoc and GetItemInfo then
+        equipLoc = select(9, GetItemInfo(itemLink))
+    end
+
+    return equipLoc == "INVTYPE_HOLDABLE"
 end
 
 -- Export the module
