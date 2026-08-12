@@ -393,12 +393,18 @@ function UIContentCreators.updateGroupScanLayout(uiElements)
         -- Set total height with proper spacing (member frames + text + padding)
         local totalHeight = memberHeight + textHeight + 30
         uiElements.scrollChild:SetHeight(math.max(totalHeight, 400)) -- Minimum height of 400
+        if uiElements.scrollFrame and uiElements.scrollFrame._UpdateScrollRange then
+            uiElements.scrollFrame:_UpdateScrollRange()
+        end
     end
 end
 
 function UIContentCreators.updateTextHeight(uiElements)
     local textHeight = uiElements.analysisText:GetStringHeight()
     uiElements.scrollChild:SetHeight(math.max(textHeight + 20, uiElements.scrollFrame:GetHeight()))
+    if uiElements.scrollFrame and uiElements.scrollFrame._UpdateScrollRange then
+        uiElements.scrollFrame:_UpdateScrollRange()
+    end
     
     -- Also update the layout to ensure proper positioning
     UIContentCreators.updateGroupScanLayout(uiElements)
@@ -589,8 +595,8 @@ function UIContentCreators.dashboard(parentFrame)
         return
     end
     
-    local title = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontNormalLarge", 
-        "Mr. Mythical Gear Check", "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING)
+    local title = UIHelpers.createTitle(parentFrame, "Mr. Mythical Gear Check",
+        "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING, 520)
 
     local inGroup = IsInGroup() or IsInRaid()
     local InspectionUtils = MrMythicalGearCheck and MrMythicalGearCheck.InspectionUtils
@@ -622,10 +628,8 @@ function UIContentCreators.dashboard(parentFrame)
     subtitle:SetWidth(520)
     subtitle:SetJustifyH("CENTER")
 
-    local personalButton = CreateFrame("Button", nil, parentFrame, "UIPanelButtonTemplate")
-    personalButton:SetSize(180, 32)
+    local personalButton = UIHelpers.createButton(parentFrame, "Check My Gear", 180, 32)
     personalButton:SetPoint("TOP", subtitle, "BOTTOM", -100, -30)
-    personalButton:SetText("Check My Gear")
     personalButton:SetScript("OnClick", function()
         NavigationManager.showContent("personal_gear", UnifiedUI.contentFrame)
         if UnifiedUI.navButtons and UnifiedUI.navButtons.personal_gear then
@@ -633,10 +637,8 @@ function UIContentCreators.dashboard(parentFrame)
         end
     end)
 
-    local groupButton = CreateFrame("Button", nil, parentFrame, "UIPanelButtonTemplate")
-    groupButton:SetSize(180, 32)
+    local groupButton = UIHelpers.createButton(parentFrame, "Check Group", 180, 32)
     groupButton:SetPoint("TOP", subtitle, "BOTTOM", 100, -30)
-    groupButton:SetText("Check Group")
     groupButton:SetScript("OnClick", function()
         NavigationManager.showContent("group_validation", UnifiedUI.contentFrame)
         if UnifiedUI.navButtons and UnifiedUI.navButtons.group_validation then
@@ -664,28 +666,32 @@ function UIContentCreators.personal_gear(parentFrame)
         return
     end
     
-    local title = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontNormalLarge",
-        "Personal Gear Check", "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING)
-    
-    -- Create scroll frame for gear check
-    local scrollFrame, scrollChild = UIHelpers.createScrollFrame(parentFrame, 
-        UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 380, 
-        UI_CONSTANTS.LAYOUT.LARGE_PADDING, -60)
-    
+    local title = UIHelpers.createTitle(parentFrame, "Personal Gear Check",
+        "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING, 400)
+
+    local pad = UI_CONSTANTS.LAYOUT.LARGE_PADDING
+    local refreshButton = UIHelpers.createButton(parentFrame, "Refresh Check", 120, 25)
+    refreshButton:SetPoint("BOTTOMRIGHT", -pad, pad)
+
+    -- Leave room above the refresh button so the scrollbar doesn't overlap it
+    local scrollBottom = pad + 25 + 8
+    local scrollFrame, scrollChild = UIHelpers.createScrollFrame(parentFrame,
+        UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 1,
+        pad, -60)
+    scrollFrame:ClearAllPoints()
+    scrollFrame:SetPoint("TOPLEFT", pad, -60)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -pad, scrollBottom)
+
     local analysisText = UIHelpers.createFontString(scrollChild, "OVERLAY", "GameFontNormal",
         "Loading gear check...", "TOPLEFT", 10, -10)
     analysisText:SetWidth(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 80)
     analysisText:SetJustifyH("LEFT")
     analysisText:SetJustifyV("TOP")
-    
-    local refreshButton = CreateFrame("Button", nil, parentFrame, "UIPanelButtonTemplate")
-    refreshButton:SetSize(120, 25)
-    refreshButton:SetPoint("BOTTOMRIGHT", -UI_CONSTANTS.LAYOUT.LARGE_PADDING, UI_CONSTANTS.LAYOUT.LARGE_PADDING)
-    refreshButton:SetText("Refresh Check")
+
     refreshButton:SetScript("OnClick", function()
         UIContentCreators.refreshPersonalGear(analysisText, scrollChild, scrollFrame)
     end)
-    
+
     -- Initial load
     UIContentCreators.refreshPersonalGear(analysisText, scrollChild, scrollFrame)
 end
@@ -728,6 +734,9 @@ function UIContentCreators.refreshPersonalGear(analysisText, scrollChild, scroll
     -- Adjust scroll child height based on content
     local textHeight = analysisText:GetStringHeight()
     scrollChild:SetHeight(math.max(textHeight + 20, scrollFrame:GetHeight()))
+    if scrollFrame._UpdateScrollRange then
+        scrollFrame:_UpdateScrollRange()
+    end
 end
 
 function UIContentCreators.group_validation(parentFrame)
@@ -738,85 +747,71 @@ function UIContentCreators.group_validation(parentFrame)
         return
     end
     
-    local title = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontNormalLarge",
-        "Group Gear Validation", "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING)
+    local title = UIHelpers.createTitle(parentFrame, "Group Gear Validation",
+        "TOP", 0, -UI_CONSTANTS.LAYOUT.LARGE_PADDING, 400)
 
     local hint = UIHelpers.createFontString(parentFrame, "OVERLAY", "GameFontDisableSmall",
         "Click a player for details. Right-click to whisper. Announce posts a summary to party/raid.", "TOP", 0, -5)
     hint:SetPoint("TOP", title, "BOTTOM", 0, -2)
     
-    local controlPanel = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
+    local Lib = LibStub and LibStub("LibMrMythicalUI-1.0", true)
+    local controlPanel
+    if Lib then
+        controlPanel = CreateFrame("Frame", nil, parentFrame)
+        local bg = Lib:CreateColorTexture(controlPanel, Lib.Theme.COLORS.NAV_BACKGROUND, "BACKGROUND")
+        bg:SetAllPoints()
+    else
+        controlPanel = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
+        controlPanel:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+            edgeSize = 8,
+            insets = { left = 2, right = 2, top = 2, bottom = 2 }
+        })
+        controlPanel:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
+    end
     controlPanel:SetPoint("TOP", hint, "BOTTOM", 0, -8)
-    controlPanel:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 95)
-    controlPanel:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 8,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 }
-    })
-    controlPanel:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
-    
-    local scanButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    controlPanel:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH - 40, 95)    
+    local scanButton = UIHelpers.createButton(controlPanel, "Fresh Scan", 95, 28)
     scanButton:SetPoint("TOPLEFT", controlPanel, "TOPLEFT", 10, -10)
-    scanButton:SetSize(95, 28)
-    scanButton:SetText("Fresh Scan")
     
-    local pauseButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    local pauseButton = UIHelpers.createButton(controlPanel, "Pause", 70, 28)
     pauseButton:SetPoint("LEFT", scanButton, "RIGHT", 6, 0)
-    pauseButton:SetSize(70, 28)
-    pauseButton:SetText("Pause")
     pauseButton:Disable()
     
-    local rescanButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    local rescanButton = UIHelpers.createButton(controlPanel, "Retry Failed", 100, 28)
     rescanButton:SetPoint("LEFT", pauseButton, "RIGHT", 6, 0)
-    rescanButton:SetSize(100, 28)
-    rescanButton:SetText("Retry Failed")
     rescanButton:Disable()
     
-    local refreshButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    local refreshButton = UIHelpers.createButton(controlPanel, "Refresh Members", 110, 28)
     refreshButton:SetPoint("LEFT", rescanButton, "RIGHT", 6, 0)
-    refreshButton:SetSize(110, 28)
-    refreshButton:SetText("Refresh Members")
     refreshButton:SetScript("OnClick", function()
         UIContentCreators.refreshGroupData(parentFrame.uiElements)
     end)
     
-    local progressBar = CreateFrame("StatusBar", nil, controlPanel)
+    local progressBar = UIHelpers.createStatusBar(controlPanel, 120, 18, false)
+    progressBar:ClearAllPoints()
     progressBar:SetPoint("LEFT", refreshButton, "RIGHT", 12, 0)
     progressBar:SetPoint("RIGHT", controlPanel, "RIGHT", -10, 0)
     progressBar:SetHeight(18)
-    progressBar:SetStatusBarTexture("Interface/TargetingFrame/UI-StatusBar")
-    progressBar:SetStatusBarColor(0.2, 0.8, 0.2, 1.0)
     progressBar:SetMinMaxValues(0, 100)
     progressBar:SetValue(0)
-    
-    local progressBg = progressBar:CreateTexture(nil, "BACKGROUND")
-    progressBg:SetAllPoints(progressBar)
-    progressBg:SetColorTexture(0.2, 0.2, 0.2, 0.8)
     
     local progressText = UIHelpers.createFontString(progressBar, "OVERLAY", "GameFontNormalSmall",
         "Ready", "CENTER", 0, 0)
 
-    local announceButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    local announceButton = UIHelpers.createButton(controlPanel, "Announce", 95, 28)
     announceButton:SetPoint("TOPLEFT", scanButton, "BOTTOMLEFT", 0, -8)
-    announceButton:SetSize(95, 28)
-    announceButton:SetText("Announce")
 
-    local whisperButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    local whisperButton = UIHelpers.createButton(controlPanel, "Whisper Selected", 120, 28)
     whisperButton:SetPoint("LEFT", announceButton, "RIGHT", 6, 0)
-    whisperButton:SetSize(120, 28)
-    whisperButton:SetText("Whisper Selected")
     whisperButton:Disable()
 
-    local sortButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    local sortButton = UIHelpers.createButton(controlPanel, "Sort: Issues First", 150, 28)
     sortButton:SetPoint("LEFT", whisperButton, "RIGHT", 6, 0)
-    sortButton:SetSize(150, 28)
-    sortButton:SetText("Sort: Issues First")
 
-    local filterButton = CreateFrame("Button", nil, controlPanel, "UIPanelButtonTemplate")
+    local filterButton = UIHelpers.createButton(controlPanel, "Filter: All Players", 160, 28)
     filterButton:SetPoint("LEFT", sortButton, "RIGHT", 6, 0)
-    filterButton:SetSize(160, 28)
-    filterButton:SetText("Filter: All Players")
     
     -- Create scroll frame for checking results
     local scrollFrame, scrollChild = UIHelpers.createScrollFrame(parentFrame, 
@@ -1413,37 +1408,96 @@ end
 
 local MainFrameManager = {}
 
+local function getUILib()
+    return LibStub and LibStub("LibMrMythicalUI-1.0", true) or nil
+end
+
 function MainFrameManager.createUnifiedFrame()
     local UI_CONSTANTS = getUIConstants()
-    
-    local frame = CreateFrame("Frame", "MrMythicalGearCheckUnifiedFrame", UIParent, "BackdropTemplate")
-    frame:SetSize(UI_CONSTANTS.FRAME.WIDTH, UI_CONSTANTS.FRAME.HEIGHT)
-    frame:SetPoint("CENTER")
-    frame:SetFrameStrata("DIALOG")
-    frame:SetFrameLevel(100)
-    frame:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
-    })
-    frame:SetBackdropColor(0, 0, 0, 0.8)
-    
+    local Lib = getUILib()
+    local frame
+
+    if Lib then
+        frame = Lib:CreatePanel(UIParent, {
+            name = "MrMythicalGearCheckUnifiedFrame",
+            title = "Mr. Mythical: Gear Check",
+            width = UI_CONSTANTS.FRAME.WIDTH,
+            height = UI_CONSTANTS.FRAME.HEIGHT,
+            movable = true,
+            frameStrata = "DIALOG",
+        })
+        frame:SetFrameLevel(100)
+
+        local close = Lib:CreateCloseButton(frame, function()
+            UnifiedUI:Hide()
+        end)
+        close:SetPoint("TOPRIGHT", -8, -8)
+        frame.CloseButton = close
+    else
+        frame = CreateFrame("Frame", "MrMythicalGearCheckUnifiedFrame", UIParent, "BackdropTemplate")
+        frame:SetSize(UI_CONSTANTS.FRAME.WIDTH, UI_CONSTANTS.FRAME.HEIGHT)
+        frame:SetPoint("CENTER")
+        frame:SetFrameStrata("DIALOG")
+        frame:SetFrameLevel(100)
+        frame:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+            edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 }
+        })
+        frame:SetBackdropColor(0, 0, 0, 0.8)
+    end
+
+    if not frame:GetPoint() then
+        frame:SetPoint("CENTER")
+    end
+
     MainFrameManager.setupFrameBehavior(frame)
     frame:Hide()
-    
+
     return frame
 end
 
 function MainFrameManager.setupFrameBehavior(frame)
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", function()
-        frame:StopMovingOrSizing()
-        MainFrameManager.saveFramePosition(frame)
-    end)
+    local Lib = getUILib()
+    if Lib and Lib.RegisterMovable then
+        Lib:RegisterMovable(frame, {
+            get = function()
+                MrMythicalGearCheckDB = MrMythicalGearCheckDB or {}
+                local pos = MrMythicalGearCheckDB.framePosition
+                if not pos or not pos.point then
+                    return nil
+                end
+                return {
+                    point = pos.point,
+                    relativePoint = pos.relativePoint or pos.point,
+                    x = pos.xOffset or pos.x or 0,
+                    y = pos.yOffset or pos.y or 0,
+                }
+            end,
+            set = function(pos)
+                MrMythicalGearCheckDB = MrMythicalGearCheckDB or {}
+                MrMythicalGearCheckDB.framePosition = {
+                    point = pos.point,
+                    relativePoint = pos.relativePoint or pos.point,
+                    xOffset = pos.x or 0,
+                    yOffset = pos.y or 0,
+                }
+            end,
+        })
+        if not frame:GetPoint() then
+            frame:SetPoint("CENTER")
+        end
+    else
+        frame:SetMovable(true)
+        frame:EnableMouse(true)
+        frame:RegisterForDrag("LeftButton")
+        frame:SetScript("OnDragStart", frame.StartMoving)
+        frame:SetScript("OnDragStop", function()
+            frame:StopMovingOrSizing()
+            MainFrameManager.saveFramePosition(frame)
+        end)
+    end
     
     frame:EnableKeyboard(true)
     frame:SetScript("OnKeyDown", function(self, key)
@@ -1459,29 +1513,38 @@ end
 
 function MainFrameManager.createNavigationPanel(parentFrame)
     local UI_CONSTANTS = getUIConstants()
-    
-    local navPanel = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
-    navPanel:SetPoint("TOPLEFT", UI_CONSTANTS.LAYOUT.PADDING, -UI_CONSTANTS.LAYOUT.PADDING)
-    navPanel:SetSize(UI_CONSTANTS.FRAME.NAV_PANEL_WIDTH, UI_CONSTANTS.FRAME.HEIGHT - (UI_CONSTANTS.LAYOUT.PADDING * 2))
-    navPanel:SetBackdrop({
-        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
-        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
-        edgeSize = 8,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 }
-    })
-    
-    local color = UI_CONSTANTS.COLORS.NAV_BACKGROUND
-    navPanel:SetBackdropColor(color.r, color.g, color.b, color.a)
-    
+    local Lib = getUILib()
+
+    local navPanel
+    if Lib then
+        navPanel = CreateFrame("Frame", nil, parentFrame)
+        navPanel:SetPoint("TOPLEFT", UI_CONSTANTS.LAYOUT.PADDING, -40)
+        navPanel:SetSize(UI_CONSTANTS.FRAME.NAV_PANEL_WIDTH, UI_CONSTANTS.FRAME.HEIGHT - 50)
+        local bg = Lib:CreateColorTexture(navPanel, Lib.Theme.COLORS.NAV_BACKGROUND, "BACKGROUND")
+        bg:SetAllPoints()
+    else
+        navPanel = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
+        navPanel:SetPoint("TOPLEFT", UI_CONSTANTS.LAYOUT.PADDING, -UI_CONSTANTS.LAYOUT.PADDING)
+        navPanel:SetSize(UI_CONSTANTS.FRAME.NAV_PANEL_WIDTH, UI_CONSTANTS.FRAME.HEIGHT - (UI_CONSTANTS.LAYOUT.PADDING * 2))
+        navPanel:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+            edgeSize = 8,
+            insets = { left = 2, right = 2, top = 2, bottom = 2 }
+        })
+        local color = UI_CONSTANTS.COLORS.NAV_BACKGROUND
+        navPanel:SetBackdropColor(color.r, color.g, color.b, color.a)
+    end
+
     return navPanel
 end
 
 function MainFrameManager.createContentFrame(parentFrame)
     local UI_CONSTANTS = getUIConstants()
-    
+
     local contentFrame = CreateFrame("Frame", nil, parentFrame)
-    contentFrame:SetPoint("TOPLEFT", UI_CONSTANTS.FRAME.NAV_PANEL_WIDTH + UI_CONSTANTS.LAYOUT.PADDING * 2, -UI_CONSTANTS.LAYOUT.PADDING)
-    contentFrame:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH, UI_CONSTANTS.FRAME.HEIGHT - (UI_CONSTANTS.LAYOUT.PADDING * 2))
+    contentFrame:SetPoint("TOPLEFT", UI_CONSTANTS.FRAME.NAV_PANEL_WIDTH + UI_CONSTANTS.LAYOUT.PADDING * 2, -40)
+    contentFrame:SetSize(UI_CONSTANTS.FRAME.CONTENT_WIDTH, UI_CONSTANTS.FRAME.HEIGHT - 50)
     return contentFrame
 end
 
@@ -1514,16 +1577,29 @@ end
 
 function NavigationManager.createNavigationButton(navPanel, buttonInfo, contentFrame, navButtons)
     local UI_CONSTANTS = getUIConstants()
-    
-    local button = CreateFrame("Button", nil, navPanel, "UIPanelButtonTemplate")
-    button:SetPoint("TOPLEFT", UI_CONSTANTS.LAYOUT.PADDING, buttonInfo.y)
-    button:SetSize(120, UI_CONSTANTS.LAYOUT.BUTTON_HEIGHT)
-    button:SetText(buttonInfo.text)
-    
+    local Lib = getUILib()
+    local button
+
+    if Lib then
+        button = Lib:CreateNavTab(navPanel, {
+            text = buttonInfo.text,
+            id = buttonInfo.id,
+            width = 120,
+            height = UI_CONSTANTS.LAYOUT.BUTTON_HEIGHT,
+            selected = false,
+        })
+        button:SetPoint("TOPLEFT", UI_CONSTANTS.LAYOUT.PADDING, buttonInfo.y)
+    else
+        button = CreateFrame("Button", nil, navPanel, "UIPanelButtonTemplate")
+        button:SetPoint("TOPLEFT", UI_CONSTANTS.LAYOUT.PADDING, buttonInfo.y)
+        button:SetSize(120, UI_CONSTANTS.LAYOUT.BUTTON_HEIGHT)
+        button:SetText(buttonInfo.text)
+    end
+
     button:SetScript("OnClick", function()
         NavigationManager.handleButtonClick(buttonInfo, button, navButtons, contentFrame)
     end)
-    
+
     return button
 end
 
@@ -1553,10 +1629,14 @@ function MainFrameManager.openSettings()
 end
 
 function NavigationManager.updateButtonStates(activeButton, navButtons)
+    local Lib = getUILib()
     for _, button in pairs(navButtons) do
-        button:SetNormalFontObject("GameFontNormal")
+        if Lib and button.SetSelected then
+            button:SetSelected(button == activeButton)
+        else
+            button:SetNormalFontObject(button == activeButton and "GameFontHighlight" or "GameFontNormal")
+        end
     end
-    activeButton:SetNormalFontObject("GameFontHighlight")
 end
 
 function NavigationManager.clearContent(contentFrame)
@@ -1617,12 +1697,13 @@ local function initializeUI()
     UnifiedUI.unifiedFrame = unifiedFrame
     UnifiedUI.contentFrame = contentFrame
     
-    -- Create close button
-    local closeButton = CreateFrame("Button", nil, unifiedFrame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", -5, -5)
-    closeButton:SetScript("OnClick", function()
-        UnifiedUI:Hide()
-    end)
+    if not unifiedFrame.CloseButton then
+        local closeButton = CreateFrame("Button", nil, unifiedFrame, "UIPanelCloseButton")
+        closeButton:SetPoint("TOPRIGHT", -5, -5)
+        closeButton:SetScript("OnClick", function()
+            UnifiedUI:Hide()
+        end)
+    end
     
     -- Default to Group Check when grouped, otherwise Personal Gear
     local defaultContent = getDefaultContentType()
@@ -1636,6 +1717,10 @@ end
 C_Timer.After(0.1, initializeUI)
 
 function MainFrameManager.saveFramePosition(frame)
+    if frame.SaveLibPosition then
+        frame:SaveLibPosition()
+        return
+    end
     MrMythicalGearCheckDB = MrMythicalGearCheckDB or {}
     local point, relativeTo, relativePoint, xOffset, yOffset = frame:GetPoint()
     MrMythicalGearCheckDB.framePosition = {
@@ -1647,6 +1732,9 @@ function MainFrameManager.saveFramePosition(frame)
 end
 
 function MainFrameManager.restoreFramePosition(frame)
+    if frame.RestoreLibPosition and frame:RestoreLibPosition() then
+        return
+    end
     MrMythicalGearCheckDB = MrMythicalGearCheckDB or {}
     if MrMythicalGearCheckDB.framePosition then
         local pos = MrMythicalGearCheckDB.framePosition

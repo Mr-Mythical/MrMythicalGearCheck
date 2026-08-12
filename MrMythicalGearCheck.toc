@@ -1,4 +1,4 @@
-## Interface: 120007
+## Interface: 120100
 ## Title: Mr. Mythical: Gear Check
 ## Notes: Quickly inspect your group's gear to identify common preparation issues like missing enchants, empty gem sockets, and low durability items.
 ## Version: @project-version@
@@ -8,7 +8,7 @@
 ## X-Wago-ID: O67jJXN3
 ## SavedVariables: MrMythicalGearCheckDB
 
-
+Libs\LibMrMythicalUI\embeds.xml
 Data/ConfigData.lua
 Data/GearData.lua
 Data/EnchantmentsData.lua
