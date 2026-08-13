@@ -2,7 +2,7 @@
 GemData.lua - Mr. Mythical Gear Check Gem Database
 
 Purpose: Database of gem ranks for validation (checking if high-rank gems are equipped)
-Dependencies: None
+Dependencies: SeasonData (expansion tag), EnchantmentsData
 Author: Braunerr
 --]]
 
@@ -26,6 +26,18 @@ local function uniqueSorted(list)
     return result
 end
 
+local function getCurrentExpansion()
+    local season = MrMythicalGearCheck.SeasonData
+    if season and season.GetExpansion then
+        return season:GetExpansion()
+    end
+    local shared = MrMythicalGearCheck.EnchantmentsData
+    if shared and shared.CURRENT_EXPANSION then
+        return shared.CURRENT_EXPANSION
+    end
+    return 11
+end
+
 local function getEnchantmentsEntries()
     local shared = (MrMythicalGearCheck.EnchantmentsData and MrMythicalGearCheck.EnchantmentsData.ENTRIES)
         or (_G.MrMythicalGearCheck and _G.MrMythicalGearCheck.EnchantmentsData and
@@ -38,9 +50,12 @@ local function buildGemRanksFromEntries()
     local rank2 = {}
     local qualityById = {}
     local singleStatSet = {}
+    local primaryStatById = {}
+    local expansion = getCurrentExpansion()
+    local season = MrMythicalGearCheck.SeasonData
 
     for _, entry in ipairs(getEnchantmentsEntries()) do
-        if entry and entry.expansion == 11 and entry.itemId and entry.slot == "socket" and entry.socketType == "PRISMATIC" then
+        if entry and entry.expansion == expansion and entry.itemId and entry.slot == "socket" and entry.socketType == "PRISMATIC" then
             if entry.quality then
                 if entry.quality >= 3 then
                     qualityById[entry.itemId] = "premium"
@@ -54,8 +69,15 @@ local function buildGemRanksFromEntries()
             elseif entry.craftingQuality == 1 then
                 table.insert(rank1, entry.itemId)
             elseif entry.craftingQuality == nil and entry.quality == 4 then
-                -- Some unique expansion-11 gems have no craftingQuality but should count as highest quality.
+                -- Some unique expansion gems have no craftingQuality but should count as highest quality.
                 table.insert(rank2, entry.itemId)
+            end
+
+            if season and season.InferGemPrimaryStat then
+                local primary = season:InferGemPrimaryStat(entry)
+                if primary then
+                    primaryStatById[entry.itemId] = primary
+                end
             end
 
             -- Single-stat check: only warn for secondary-stat gems.
@@ -90,6 +112,7 @@ local function buildGemRanksFromEntries()
         RANK_1 = uniqueSorted(rank1),
         QUALITY_BY_ID = qualityById,
         SINGLE_STAT_BY_ID = singleStatSet,
+        PRIMARY_STAT_BY_ID = primaryStatById,
     }
 end
 
@@ -103,6 +126,7 @@ GemData.GEM_RANKS = {
 }
 GemData.GEM_QUALITY_BY_ID = generated.QUALITY_BY_ID
 GemData.SINGLE_STAT_BY_ID = generated.SINGLE_STAT_BY_ID
+GemData.PRIMARY_STAT_BY_ID = generated.PRIMARY_STAT_BY_ID
 
 --- Gets the rank of a gem by its ID
 --- @param gemId number Gem item ID
@@ -197,6 +221,16 @@ function GemData:IsSingleStatGem(gemId)
     end
 
     return self.SINGLE_STAT_BY_ID[gemId] == true
+end
+
+--- Locked primary stat for a gem, if any (STR/AGI/INT/AGI_STR). Adaptive "Primary" gems return nil.
+--- @param gemId number
+--- @return string|nil
+function GemData:GetGemPrimaryStat(gemId)
+    if not gemId or gemId == 0 then
+        return nil
+    end
+    return self.PRIMARY_STAT_BY_ID and self.PRIMARY_STAT_BY_ID[gemId]
 end
 
 --- Gets a warning message for known suboptimal gems

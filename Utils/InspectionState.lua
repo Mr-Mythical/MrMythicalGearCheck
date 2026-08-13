@@ -63,22 +63,25 @@ function InspectionState:CreatePlayerSummary(unit, playerName, gearInfo)
         return nil, nil
     end
 
-    local itemLevel = 0
-    local itemCount = 0
-    local gearData = getDependency("GearData")
-    if gearData and gearData.SLOT_NAMES then
-        for slotId, _ in pairs(gearData.SLOT_NAMES) do
-            local itemLink = GetInventoryItemLink(unit, slotId)
-            if itemLink then
-                local itemLvl = C_Item and C_Item.GetDetailedItemLevelInfo and C_Item.GetDetailedItemLevelInfo(itemLink)
-                if itemLvl and itemLvl > 0 then
-                    itemLevel = itemLevel + itemLvl
-                    itemCount = itemCount + 1
+    local avgItemLevel = analysis.avgItemLevel
+    if not avgItemLevel or avgItemLevel == 0 then
+        local itemLevel = 0
+        local itemCount = 0
+        local gearData = getDependency("GearData")
+        if gearData and gearData.SLOT_NAMES then
+            for slotId, _ in pairs(gearData.SLOT_NAMES) do
+                local itemLink = GetInventoryItemLink(unit, slotId)
+                if itemLink then
+                    local itemLvl = C_Item and C_Item.GetDetailedItemLevelInfo and C_Item.GetDetailedItemLevelInfo(itemLink)
+                    if itemLvl and itemLvl > 0 then
+                        itemLevel = itemLevel + itemLvl
+                        itemCount = itemCount + 1
+                    end
                 end
             end
         end
+        avgItemLevel = itemCount > 0 and math.floor(itemLevel / itemCount) or 0
     end
-    local avgItemLevel = itemCount > 0 and math.floor(itemLevel / itemCount) or 0
     local className, classFile = UnitClass(unit)
 
     local details = {
@@ -95,6 +98,12 @@ function InspectionState:CreatePlayerSummary(unit, playerName, gearInfo)
         lowRankGems = analysis.lowRankGems or 0,
         suboptimalGems = analysis.suboptimalGems or 0,
         hasLowDurability = analysis.hasLowDurability and true or false,
+        lowItemLevelPieces = analysis.lowItemLevelPieces or 0,
+        wrongStatEnchants = analysis.wrongStatEnchants or 0,
+        wrongStatGems = analysis.wrongStatGems or 0,
+        lowAvgItemLevel = analysis.lowAvgItemLevel and true or false,
+        embellishmentIssues = analysis.embellishmentIssues and true or false,
+        embellishmentCount = analysis.embellishmentCount or 0,
     }
 
     if analysis.totalIssues == 0 then
@@ -122,6 +131,21 @@ function InspectionState:CreatePlayerSummary(unit, playerName, gearInfo)
     end
     if analysis.hasLowDurability then
         table.insert(issueTypes, "needs repair")
+    end
+    if analysis.lowItemLevelPieces and analysis.lowItemLevelPieces > 0 then
+        table.insert(issueTypes, analysis.lowItemLevelPieces .. " low ilvl")
+    end
+    if analysis.lowAvgItemLevel then
+        table.insert(issueTypes, "low average ilvl")
+    end
+    if analysis.wrongStatEnchants and analysis.wrongStatEnchants > 0 then
+        table.insert(issueTypes, analysis.wrongStatEnchants .. " wrong-stat enchants")
+    end
+    if analysis.wrongStatGems and analysis.wrongStatGems > 0 then
+        table.insert(issueTypes, analysis.wrongStatGems .. " wrong-stat gems")
+    end
+    if analysis.embellishmentIssues then
+        table.insert(issueTypes, "embellishments")
     end
 
     local issueText = table.concat(issueTypes, ", ")

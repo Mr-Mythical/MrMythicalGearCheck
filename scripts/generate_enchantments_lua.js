@@ -10,6 +10,8 @@
  *
  * Expected JSON: an array of entry objects (or { entries: [...] }) with fields
  * used by EnchantData / GemData (id, itemId, categoryName, expansion, etc.).
+ *
+ * CURRENT_EXPANSION must stay in sync with Data/SeasonData.lua (SeasonData.EXPANSION).
  */
 
 const fs = require("fs");

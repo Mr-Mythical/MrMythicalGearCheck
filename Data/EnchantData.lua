@@ -2,7 +2,7 @@
 EnchantData.lua - Mr. Mythical Gear Check Enchant Database
 
 Purpose: Database of enchant ranks for validation (checking if high-rank enchants are equipped)
-Dependencies: None
+Dependencies: SeasonData (expansion tag), EnchantmentsData
 Author: Braunerr
 --]]
 
@@ -24,6 +24,18 @@ local function uniqueSorted(list)
 
     table.sort(result)
     return result
+end
+
+local function getCurrentExpansion()
+    local season = MrMythicalGearCheck.SeasonData
+    if season and season.GetExpansion then
+        return season:GetExpansion()
+    end
+    local shared = MrMythicalGearCheck.EnchantmentsData
+    if shared and shared.CURRENT_EXPANSION then
+        return shared.CURRENT_EXPANSION
+    end
+    return 11
 end
 
 local function getEnchantmentsEntries()
@@ -102,6 +114,9 @@ local function buildEnchantDataFromEntries()
     local rank2 = {}
     local runeSet = {}
     local qualityById = {}
+    local primaryStatById = {}
+    local expansion = getCurrentExpansion()
+    local season = MrMythicalGearCheck.SeasonData
 
     for _, entry in ipairs(getEnchantmentsEntries()) do
         if entry and entry.id then
@@ -109,8 +124,15 @@ local function buildEnchantDataFromEntries()
                 runeSet[entry.id] = true
             end
 
-            if entry.expansion == 11 and VALID_ENCHANT_CATEGORIES[entry.categoryName] then
+            if entry.expansion == expansion and VALID_ENCHANT_CATEGORIES[entry.categoryName] then
                 qualityById[entry.id] = getMaterialQualityFromEntry(entry)
+
+                if season and season.InferEnchantPrimaryStat then
+                    local primary = season:InferEnchantPrimaryStat(entry)
+                    if primary then
+                        primaryStatById[entry.id] = primary
+                    end
+                end
 
                 if entry.spellId and entry.craftingQuality == 2 then
                     table.insert(rank2, entry.id)
@@ -129,6 +151,7 @@ local function buildEnchantDataFromEntries()
         },
         DEATH_KNIGHT_RUNES = runeSet,
         ENCHANT_QUALITY_BY_ID = qualityById,
+        PRIMARY_STAT_BY_ID = primaryStatById,
     }
 end
 
@@ -152,6 +175,17 @@ EnchantData.ENCHANTABLE_SLOTS = {
 
 EnchantData.DEATH_KNIGHT_RUNES = generated.DEATH_KNIGHT_RUNES
 EnchantData.ENCHANT_QUALITY_BY_ID = generated.ENCHANT_QUALITY_BY_ID
+EnchantData.PRIMARY_STAT_BY_ID = generated.PRIMARY_STAT_BY_ID
+
+--- Locked primary stat for an enchant, if any (STR/AGI/INT/AGI_STR).
+--- @param enchantId number
+--- @return string|nil
+function EnchantData:GetEnchantPrimaryStat(enchantId)
+    if not enchantId or enchantId == 0 then
+        return nil
+    end
+    return self.PRIMARY_STAT_BY_ID and self.PRIMARY_STAT_BY_ID[enchantId]
+end
 
 --- Checks whether an enchant ID is a valid Death Knight rune
 --- @param enchantId number Enchant ID

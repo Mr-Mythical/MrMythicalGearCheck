@@ -20,7 +20,11 @@ local DEFAULTS = {
     MIN_GEM_RANK = 2,
     LOW_DURABILITY_THRESHOLD = 50,
     SHOW_CHARACTER_PANEL = true,
-    SHOW_CHARACTER_PANEL_ISSUES_ONLY = false
+    SHOW_CHARACTER_PANEL_ISSUES_ONLY = false,
+    MIN_AVG_ITEM_LEVEL = 0,
+    MIN_EQUIPPED_ITEM_LEVEL = 0,
+    MIN_EMBELLISHMENTS = 0,
+    SPEC_AWARE_HINTS = true
 }
 
 Options.DEFAULTS = DEFAULTS
@@ -40,6 +44,27 @@ local DROPDOWN_OPTIONS = {
         { text = "Below 40%", value = 40 },
         { text = "Below 50%", value = 50 },
         { text = "Below 75%", value = 75 }
+    },
+    MIN_AVG_ITEM_LEVEL = {
+        { text = "Off", value = 0 },
+        { text = "240+", value = 240 },
+        { text = "250+", value = 250 },
+        { text = "260+", value = 260 },
+        { text = "270+", value = 270 },
+        { text = "280+", value = 280 }
+    },
+    MIN_EQUIPPED_ITEM_LEVEL = {
+        { text = "Off", value = 0 },
+        { text = "240+", value = 240 },
+        { text = "250+", value = 250 },
+        { text = "260+", value = 260 },
+        { text = "270+", value = 270 },
+        { text = "280+", value = 280 }
+    },
+    MIN_EMBELLISHMENTS = {
+        { text = "Off", value = 0 },
+        { text = "At least 1", value = 1 },
+        { text = "At least 2", value = 2 }
     }
 }
 
@@ -56,7 +81,19 @@ local TOOLTIPS = {
         "Applies to your personal gear check and character panel summary.",
 
     REQUIRE_PREMIUM_ENCHANTS = "When enabled, cheap enchant materials are flagged on slots that use a premium vs cheap material split.\n\n" ..
-        "|cffaaaaaaCurrent expansion uses rank-based enchants only, so this setting has no effect until material-quality slots are configured again.|r"
+        "|cffaaaaaaCurrent expansion uses rank-based enchants only, so this setting has no effect until material-quality slots are configured again.|r",
+
+    MIN_AVG_ITEM_LEVEL = "Flag players whose average equipped item level is below this value.\n\n" ..
+        "Off by default. Midnight Spark-crafted gear is roughly 246-285; raise the gate when the season item band moves.",
+
+    MIN_EQUIPPED_ITEM_LEVEL = "Flag individual equipped pieces below this item level.\n\n" ..
+        "Off by default. Uses the item's effective (upgrade) level, not the base tooltip level.",
+
+    MIN_EMBELLISHMENTS = "Require a minimum number of Unique-Equipped: Embellished crafted pieces.\n\n" ..
+        "The game cap is 2. Off by default so groups are not flagged for skipping optional crafts.",
+
+    SPEC_AWARE_HINTS = "Warn when a chest, leg, weapon enchant, or gem grants a primary stat that does not match the player's current spec.\n\n" ..
+        "Adaptive Primary / Worldsoul lines are not flagged. Dual-stat secondary gems are not flagged."
 }
 
 --- Creates a setting with appropriate UI element
@@ -183,6 +220,38 @@ function Options.createSettingsPanel()
                     key = "SHOW_CHARACTER_PANEL_ISSUES_ONLY",
                     type = "boolean",
                     tooltip = "When enabled, the character panel hides clean slots and only lists detected issues."
+                }
+            }
+        },
+        {
+            header = { name = "Season Rules", tooltip = "Optional item-level, embellishment, and spec-stat checks. Revisit thresholds on patch day." },
+            settings = {
+                {
+                    name = "Minimum Average Item Level",
+                    key = "MIN_AVG_ITEM_LEVEL",
+                    type = "number",
+                    tooltip = TOOLTIPS.MIN_AVG_ITEM_LEVEL,
+                    options = DROPDOWN_OPTIONS.MIN_AVG_ITEM_LEVEL
+                },
+                {
+                    name = "Minimum Piece Item Level",
+                    key = "MIN_EQUIPPED_ITEM_LEVEL",
+                    type = "number",
+                    tooltip = TOOLTIPS.MIN_EQUIPPED_ITEM_LEVEL,
+                    options = DROPDOWN_OPTIONS.MIN_EQUIPPED_ITEM_LEVEL
+                },
+                {
+                    name = "Required Embellishments",
+                    key = "MIN_EMBELLISHMENTS",
+                    type = "number",
+                    tooltip = TOOLTIPS.MIN_EMBELLISHMENTS,
+                    options = DROPDOWN_OPTIONS.MIN_EMBELLISHMENTS
+                },
+                {
+                    name = "Spec-Aware Stat Hints",
+                    key = "SPEC_AWARE_HINTS",
+                    type = "boolean",
+                    tooltip = TOOLTIPS.SPEC_AWARE_HINTS
                 }
             }
         }

@@ -2,7 +2,7 @@
 GearUtils.lua - Mr. Mythical Gear Check Utilities
 
 Purpose: Utilities for inspecting and analyzing player gear for validation
-Dependencies: ConfigData, GearData, EnchantData, GemData, TooltipUtils
+Dependencies: ConfigData, SeasonData, GearData, EnchantData, GemData, TooltipUtils
 Author: Braunerr
 --]]
 
@@ -28,10 +28,17 @@ local ISSUE_TYPES = {
     LOW_DURABILITY = "LOW_DURABILITY",
     LOW_RANK_GEM = "LOW_RANK_GEM",
     SUBOPTIMAL_GEM = "SUBOPTIMAL_GEM",
-    EMPTY_SLOT = "EMPTY_SLOT"
+    EMPTY_SLOT = "EMPTY_SLOT",
+    LOW_ITEM_LEVEL = "LOW_ITEM_LEVEL",
+    LOW_AVG_ITEM_LEVEL = "LOW_AVG_ITEM_LEVEL",
+    WRONG_STAT_ENCHANT = "WRONG_STAT_ENCHANT",
+    WRONG_STAT_GEM = "WRONG_STAT_GEM",
+    EMBELLISHMENT_MISSING = "EMBELLISHMENT_MISSING",
+    EMBELLISHMENT_LIMIT = "EMBELLISHMENT_LIMIT"
 }
 
---- Helper function to check if a slot should be enchant-checked based on class and weapon setup
+--- Helper function to check if a slot should be enchant-checked based on class and weapon setup.
+--- Enchantable slots are the Midnight list in ConfigData (no neck/wrist/cloak).
 --- @param slotId number Equipment slot ID
 --- @param playerClass string The class of the unit being analyzed
 --- @return boolean True if slot should be checked for enchants
@@ -42,13 +49,30 @@ local function shouldCheckEnchant(slotId, playerClass)
         return false
     end
 
-    -- Wrist enchants are intentionally ignored for warning generation.
-    local wristSlot = (config and config.CONSTANTS and config.CONSTANTS.SLOT_IDS and config.CONSTANTS.SLOT_IDS.WRIST) or 9
-    if slotId == wristSlot then
-        return false
-    end
-
     return true
+end
+
+local function specAwareEnabled(config)
+    return config and config.GetSpecAwareHints and config:GetSpecAwareHints()
+end
+
+local function addWrongStatIssue(issues, issueType, requiredStat, unitStat, kind)
+    local season = getDependency("SeasonData")
+    if not season or not season.PrimaryStatsCompatible then
+        return
+    end
+    if season:PrimaryStatsCompatible(requiredStat, unitStat) then
+        return
+    end
+    table.insert(issues, {
+        type = issueType,
+        message = string.format(
+            "%s %s on a %s spec",
+            season:GetPrimaryStatLabel(requiredStat),
+            kind or "stat",
+            season:GetPrimaryStatLabel(unitStat)
+        )
+    })
 end
 
 --- Gets display name for enchant quality
@@ -81,7 +105,7 @@ local EnchantValidationRule = {
         return true
     end,
 
-    validate = function(self, itemAnalysis, slotId, config, playerClass)
+    validate = function(self, itemAnalysis, slotId, config, playerClass, unit)
         local issues = {}
 
         -- Skip validation if no item analysis (empty slot)
@@ -155,6 +179,13 @@ local EnchantValidationRule = {
                         })
                     end
                 end
+
+                if specAwareEnabled(config) and enchantData.GetEnchantPrimaryStat then
+                    local season = getDependency("SeasonData")
+                    local unitStat = season and season.GetUnitPrimaryStat and season:GetUnitPrimaryStat(unit or "player")
+                    local enchantStat = enchantData:GetEnchantPrimaryStat(itemAnalysis.enchant.id)
+                    addWrongStatIssue(issues, ISSUE_TYPES.WRONG_STAT_ENCHANT, enchantStat, unitStat, "enchant")
+                end
             end
         end
 
@@ -169,7 +200,7 @@ local GemValidationRule = {
         return itemAnalysis and itemAnalysis.sockets and itemAnalysis.sockets.total > 0
     end,
 
-    validate = function(self, itemAnalysis, slotId, config)
+    validate = function(self, itemAnalysis, slotId, config, playerClass, unit)
         local issues = {}
 
         -- Skip validation if no item analysis (empty slot)
@@ -190,9 +221,14 @@ local GemValidationRule = {
 
         -- Check gem quality if we have gem data
         if itemAnalysis.gems then
-            local minGemRank = config:GetMinGemRank() or 3
+            local minGemRank = config:GetMinGemRank() or 2
             local gearData = getDependency("GearData")
             local slotName = gearData and gearData.SLOT_NAMES and gearData.SLOT_NAMES[slotId] or "Unknown Slot"
+            local season = getDependency("SeasonData")
+            local unitStat = nil
+            if specAwareEnabled(config) and season and season.GetUnitPrimaryStat then
+                unitStat = season:GetUnitPrimaryStat(unit or "player")
+            end
 
             for _, gem in ipairs(itemAnalysis.gems) do
                 local hasRankIssue = gem.rank and gem.rank > 0 and gem.rank < minGemRank
@@ -233,6 +269,17 @@ local GemValidationRule = {
                         message = warningText
                     })
                 end
+
+                if unitStat then
+                    local gemStat = gem.primaryStat
+                    if not gemStat then
+                        local gemData = getDependency("GemData")
+                        if gemData and gemData.GetGemPrimaryStat then
+                            gemStat = gemData:GetGemPrimaryStat(gem.id)
+                        end
+                    end
+                    addWrongStatIssue(issues, ISSUE_TYPES.WRONG_STAT_GEM, gemStat, unitStat, "gem")
+                end
             end
         end
 
@@ -261,6 +308,26 @@ local DurabilityValidationRule = {
             end
         end
         
+        return issues
+    end
+}
+
+--- Per-piece item-level gate (average ilvl is evaluated after all slots).
+local ItemLevelValidationRule = {
+    appliesTo = function(self, itemAnalysis)
+        return itemAnalysis ~= nil
+    end,
+
+    validate = function(self, itemAnalysis, slotId, config)
+        local issues = {}
+        local minIlvl = config.GetMinEquippedItemLevel and config:GetMinEquippedItemLevel() or 0
+        local itemLevel = itemAnalysis.itemLevel or 0
+        if minIlvl > 0 and itemLevel > 0 and itemLevel < minIlvl then
+            table.insert(issues, {
+                type = ISSUE_TYPES.LOW_ITEM_LEVEL,
+                message = "Item level " .. itemLevel .. " (need " .. minIlvl .. ")"
+            })
+        end
         return issues
     end
 }
@@ -327,6 +394,7 @@ local ValidationEngine = {
 ValidationEngine:registerRule(EnchantValidationRule)
 ValidationEngine:registerRule(GemValidationRule)
 ValidationEngine:registerRule(DurabilityValidationRule)
+ValidationEngine:registerRule(ItemLevelValidationRule)
 ValidationEngine:registerRule(EmptySlotValidationRule)
 
 
@@ -408,6 +476,69 @@ function GearUtils:IsInspectDataComplete(unit)
     return withLink > 0
 end
 
+local function getEffectiveItemLevel(itemLink)
+    if not itemLink then
+        return 0
+    end
+    if C_Item and C_Item.GetDetailedItemLevelInfo then
+        local ilvl = C_Item.GetDetailedItemLevelInfo(itemLink)
+        if ilvl and ilvl > 0 then
+            return ilvl
+        end
+    end
+    local _, _, _, baseIlvl = GetItemInfo(itemLink)
+    return baseIlvl or 0
+end
+
+--- Average item-level and embellishment-count gates for a full equipped set.
+--- @param equippedMeta table array of { itemLevel, isEmbellished }
+--- @param config table
+--- @return table issues
+--- @return number avgItemLevel
+--- @return number embellishmentCount
+function GearUtils:EvaluateSetRules(equippedMeta, config)
+    local issues = {}
+    local season = getDependency("SeasonData")
+    local maxEmb = (season and season.MAX_EMBELLISHMENTS) or 2
+
+    local sum = 0
+    local count = 0
+    local emb = 0
+    for _, item in ipairs(equippedMeta or {}) do
+        if item.itemLevel and item.itemLevel > 0 then
+            sum = sum + item.itemLevel
+            count = count + 1
+        end
+        if item.isEmbellished then
+            emb = emb + 1
+        end
+    end
+
+    local avg = count > 0 and math.floor(sum / count) or 0
+    local minAvg = config and config.GetMinAvgItemLevel and config:GetMinAvgItemLevel() or 0
+    if minAvg > 0 and avg < minAvg then
+        table.insert(issues, {
+            type = ISSUE_TYPES.LOW_AVG_ITEM_LEVEL,
+            message = "Average item level " .. avg .. " (need " .. minAvg .. ")"
+        })
+    end
+
+    local minEmb = config and config.GetMinEmbellishments and config:GetMinEmbellishments() or 0
+    if minEmb > 0 and emb < minEmb then
+        table.insert(issues, {
+            type = ISSUE_TYPES.EMBELLISHMENT_MISSING,
+            message = emb .. " embellishment" .. (emb == 1 and "" or "s") .. " equipped (need " .. minEmb .. ")"
+        })
+    elseif emb > maxEmb then
+        table.insert(issues, {
+            type = ISSUE_TYPES.EMBELLISHMENT_LIMIT,
+            message = emb .. " embellishments equipped (max " .. maxEmb .. " Unique-Equipped: Embellished)"
+        })
+    end
+
+    return issues, avg, emb
+end
+
 --- Unified gear analysis function that supports both basic and detailed modes
 --- @param unit string Unit ID ("player", "party1", "target", etc.)
 --- @param mode string "basic" for simple data collection, "detailed" for full analysis
@@ -464,11 +595,19 @@ function GearUtils:AnalyzeGear(unit, mode)
             lowRankEnchants = 0,
             missingSockets = 0,
             emptyGems = 0,
+            lowItemLevelPieces = 0,
+            wrongStatEnchants = 0,
+            wrongStatGems = 0,
+            lowAvgItemLevel = false,
+            embellishmentIssues = false,
+            avgItemLevel = 0,
+            embellishmentCount = 0,
             totalIssues = 0
         }
     end
 
     -- Process each equipment slot
+    local equippedMeta = {}
     for slotId, slotName in pairs(GearData.SLOT_NAMES) do
         local itemLink = GetInventoryItemLink(unit, slotId)
         local itemId = GetInventoryItemID and GetInventoryItemID(unit, slotId) or nil
@@ -481,6 +620,10 @@ function GearUtils:AnalyzeGear(unit, mode)
         
         if itemLink then
             itemAnalysis = self:AnalyzeItemInternal(itemLink, slotId, playerClass)
+            table.insert(equippedMeta, {
+                itemLevel = itemAnalysis.itemLevel or 0,
+                isEmbellished = itemAnalysis.isEmbellished and true or false
+            })
         end
         
         if mode == "basic" then
@@ -491,10 +634,25 @@ function GearUtils:AnalyzeGear(unit, mode)
     end
     
     if mode == "detailed" then
+        local setIssues, avgItemLevel, embellishmentCount = self:EvaluateSetRules(equippedMeta, ConfigData)
+        results.avgItemLevel = avgItemLevel or 0
+        results.embellishmentCount = embellishmentCount or 0
+        for _, issue in ipairs(setIssues) do
+            if issue.type == ISSUE_TYPES.LOW_AVG_ITEM_LEVEL then
+                results.lowAvgItemLevel = true
+                table.insert(results.gearDetails, "|cffff8000- " .. issue.message .. "|r")
+            elseif issue.type == ISSUE_TYPES.EMBELLISHMENT_MISSING or issue.type == ISSUE_TYPES.EMBELLISHMENT_LIMIT then
+                results.embellishmentIssues = true
+                table.insert(results.gearDetails, "|cffff8000- " .. issue.message .. "|r")
+            end
+        end
+
         -- Calculate total issues and generate summary
         results.totalIssues = results.unenchantedItems + results.lowRankEnchants + 
                      (results.hasLowDurability and 1 or 0) + results.emptySlots + 
-                     results.lowRankGems + results.suboptimalGems + results.emptyGems
+                     results.lowRankGems + results.suboptimalGems + results.emptyGems +
+                     results.lowItemLevelPieces + results.wrongStatEnchants + results.wrongStatGems +
+                     (results.lowAvgItemLevel and 1 or 0) + (results.embellishmentIssues and 1 or 0)
 
         if results.totalIssues == 0 then
             table.insert(results.summaryLines, "|cff00ff00PERFECT GEAR! No issues detected.|r")
@@ -524,17 +682,20 @@ end
 --- @return table Item analysis results
 function GearUtils:AnalyzeItemInternal(itemLink, slotId, playerClass)
     local _, _, _, itemLevel, _, _, _, _, _, _, _, itemClassID, itemSubClassID = GetItemInfo(itemLink)
+    local TooltipUtils = getDependency("TooltipUtils")
+    local isEmbellished = TooltipUtils and TooltipUtils.IsEmbellished and TooltipUtils.IsEmbellished(itemLink) or false
 
     local analysis = {
         itemLink = itemLink,
-        itemLevel = itemLevel or 0,
+        itemLevel = getEffectiveItemLevel(itemLink) or itemLevel or 0,
         slotId = slotId,
         enchant = self:GetItemEnchant(itemLink),
         gems = self:GetItemGems(itemLink),
         sockets = self:GetItemSockets(itemLink, slotId),
         durability = self:GetItemDurability(slotId),
         classID = itemClassID,
-        subClassID = itemSubClassID
+        subClassID = itemSubClassID,
+        isEmbellished = isEmbellished
     }
 
     return analysis
@@ -596,6 +757,15 @@ function GearUtils:ProcessSlotIssues(itemAnalysis, slotId, slotName, playerClass
         elseif issue.type == ISSUE_TYPES.EMPTY_SLOT then
             results.emptySlots = results.emptySlots + 1
             table.insert(results.gearDetails, "|cffff8000- Empty slot: " .. slotName .. "|r")
+        elseif issue.type == ISSUE_TYPES.LOW_ITEM_LEVEL then
+            results.lowItemLevelPieces = (results.lowItemLevelPieces or 0) + 1
+            table.insert(results.gearDetails, "|cffff8000- " .. formatIssueWithSlot(issue.message) .. "|r")
+        elseif issue.type == ISSUE_TYPES.WRONG_STAT_ENCHANT then
+            results.wrongStatEnchants = (results.wrongStatEnchants or 0) + 1
+            table.insert(results.gearDetails, "|cffff8000- " .. formatIssueWithSlot(issue.message) .. "|r")
+        elseif issue.type == ISSUE_TYPES.WRONG_STAT_GEM then
+            results.wrongStatGems = (results.wrongStatGems or 0) + 1
+            table.insert(results.gearDetails, "|cffff8000- " .. formatIssueWithSlot(issue.message) .. "|r")
         end
     end
 end
@@ -735,7 +905,8 @@ function GearUtils:GetItemGems(itemLink)
                 socket = socketIndex,
                 quality = gemQuality,
                 hasEnhancedEffect = hasEnhancedEffect,
-                warning = warning
+                warning = warning,
+                primaryStat = gemData and gemData.GetGemPrimaryStat and gemData:GetGemPrimaryStat(gemID) or nil
             })
         end
     end
@@ -993,6 +1164,7 @@ function GearUtils:GetPersonalGemEnchantIssuesReport()
     local issueOnlyLines = {}
     local hasReportEntries = false
     local issueCount = 0
+    local equippedMeta = {}
 
     for _, slotId in ipairs(slotIds) do
         local slotName = GearData.SLOT_NAMES[slotId] or ("Slot " .. tostring(slotId))
@@ -1000,11 +1172,22 @@ function GearUtils:GetPersonalGemEnchantIssuesReport()
 
         if itemLink then
             local itemAnalysis = self:AnalyzeItemInternal(itemLink, slotId, playerClass)
+            table.insert(equippedMeta, {
+                itemLevel = itemAnalysis.itemLevel or 0,
+                isEmbellished = itemAnalysis.isEmbellished and true or false
+            })
             local slotIssues = ValidationEngine:validateItem(itemAnalysis, slotId, ConfigData, playerClass, "player")
 
             local enchantText = nil
             local enchantId = itemAnalysis and itemAnalysis.enchant and itemAnalysis.enchant.id or 0
             local isEnchantSlot = EnchantData and EnchantData.ENCHANTABLE_SLOTS and EnchantData.ENCHANTABLE_SLOTS[slotId]
+            if isEnchantSlot then
+                local TooltipUtils = getDependency("TooltipUtils")
+                local offHandSlot = ConfigData and ConfigData.CONSTANTS and ConfigData.CONSTANTS.SLOT_IDS and ConfigData.CONSTANTS.SLOT_IDS.OFF_HAND or 17
+                if slotId == offHandSlot and TooltipUtils and TooltipUtils.scanTooltipForOffHandType and TooltipUtils.scanTooltipForOffHandType(itemLink) then
+                    isEnchantSlot = false
+                end
+            end
             if isEnchantSlot then
                 if enchantId and enchantId > 0 then
                     enchantText = getEnchantDisplayName(enchantId) or "Unknown enchant"
@@ -1066,6 +1249,42 @@ function GearUtils:GetPersonalGemEnchantIssuesReport()
                 table.insert(issueOnlyLines, "")
             end
         end
+    end
+
+    local season = getDependency("SeasonData")
+    local maxEmb = (season and season.MAX_EMBELLISHMENTS) or 2
+    local setIssues, avgIlvl, embCount = self:EvaluateSetRules(equippedMeta, ConfigData)
+    local headerLines = {
+        string.format("Avg item level: %d", avgIlvl or 0),
+        string.format("Embellishments: %d/%d", embCount or 0, maxEmb),
+        ""
+    }
+
+    local setIssueLines = {}
+    for _, issue in ipairs(setIssues) do
+        if issue and issue.message and issue.message ~= "" then
+            issueCount = issueCount + 1
+            table.insert(setIssueLines, "  |cffff8000Issue: " .. issue.message .. "|r")
+        end
+    end
+
+    if #setIssueLines > 0 then
+        hasReportEntries = true
+        table.insert(reportLines, 1, "")
+        for i = #setIssueLines, 1, -1 do
+            table.insert(reportLines, 1, setIssueLines[i])
+        end
+        table.insert(reportLines, 1, "|cffadd8e6Set|r")
+
+        table.insert(issueOnlyLines, 1, "")
+        for i = #setIssueLines, 1, -1 do
+            table.insert(issueOnlyLines, 1, setIssueLines[i])
+        end
+        table.insert(issueOnlyLines, 1, "|cffadd8e6Set|r")
+    end
+
+    for i = #headerLines, 1, -1 do
+        table.insert(reportLines, 1, headerLines[i])
     end
 
     if not hasReportEntries then

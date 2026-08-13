@@ -10,6 +10,7 @@
 
 Libs\LibMrMythicalUI\embeds.xml
 Data/ConfigData.lua
+Data/SeasonData.lua
 Data/GearData.lua
 Data/EnchantmentsData.lua
 Data/EnchantData.lua

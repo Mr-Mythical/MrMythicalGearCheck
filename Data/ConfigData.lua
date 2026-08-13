@@ -34,7 +34,9 @@ ConfigData.CONSTANTS = {
         OFF_HAND = 17
     },
 
-    -- Slots that require enchants (head, shoulder, chest, legs, feet, fingers, weapon)
+    -- Midnight enchantable slots. Neck, wrist, hands, belt, cloak, and trinkets
+    -- are not enchanted this expansion. Off-hand holdables and shields are skipped in GearUtils.
+    -- Revisit this list on patch day (see Data/SeasonData.lua and README).
     ENCHANTABLE_SLOTS = {
         [1] = true,   -- Head
         [3] = true,   -- Shoulder
@@ -70,8 +72,8 @@ ConfigData.CONSTANTS = {
         [12] = 0      -- Ring 2 (check empty sockets only)
     },
     
-    -- Gem parsing configuration
-    GEM_SLOT_POSITIONS = {3, 4} -- Positions in item string where gems are stored (only 2 gems max in current gear)
+    -- Gem parsing configuration (item string: itemId:enchant:gem1:gem2:gem3:...)
+    GEM_SLOT_POSITIONS = {3, 4, 5}
 }
 
 --- Helper to get defaults from Options module
@@ -158,6 +160,38 @@ end
 function ConfigData:GetLowDurabilityThreshold()
     local db = MrMythicalGearCheckDB or {}
     return db.LOW_DURABILITY_THRESHOLD or getDefaults().LOW_DURABILITY_THRESHOLD or 50
+end
+
+--- Average equipped item-level gate. 0 disables the check.
+--- @return number
+function ConfigData:GetMinAvgItemLevel()
+    local db = MrMythicalGearCheckDB or {}
+    return db.MIN_AVG_ITEM_LEVEL or getDefaults().MIN_AVG_ITEM_LEVEL or 0
+end
+
+--- Per-piece equipped item-level gate. 0 disables the check.
+--- @return number
+function ConfigData:GetMinEquippedItemLevel()
+    local db = MrMythicalGearCheckDB or {}
+    return db.MIN_EQUIPPED_ITEM_LEVEL or getDefaults().MIN_EQUIPPED_ITEM_LEVEL or 0
+end
+
+--- Minimum Unique-Equipped: Embellished pieces required. 0 disables the check.
+--- @return number
+function ConfigData:GetMinEmbellishments()
+    local db = MrMythicalGearCheckDB or {}
+    return db.MIN_EMBELLISHMENTS or getDefaults().MIN_EMBELLISHMENTS or 0
+end
+
+--- Whether to warn when an enchant or gem primary stat does not match the spec.
+--- @return boolean
+function ConfigData:GetSpecAwareHints()
+    local db = MrMythicalGearCheckDB or {}
+    if db.SPEC_AWARE_HINTS == nil then
+        local default = getDefaults().SPEC_AWARE_HINTS
+        return default == nil and true or default
+    end
+    return db.SPEC_AWARE_HINTS
 end
 
 -- Ensure global access
