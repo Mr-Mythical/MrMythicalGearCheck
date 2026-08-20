@@ -29,6 +29,20 @@ local DEFAULTS = {
 
 Options.DEFAULTS = DEFAULTS
 
+local function ilvlDropdownOptions()
+    local season = MrMythicalGearCheck.SeasonData
+    local presets = (season and season.ILVL_PRESETS) or { 0, 290, 300, 310, 320, 330 }
+    local options = {}
+    for _, value in ipairs(presets) do
+        if value == 0 then
+            table.insert(options, { text = "Off", value = 0 })
+        else
+            table.insert(options, { text = value .. "+", value = value })
+        end
+    end
+    return options
+end
+
 local DROPDOWN_OPTIONS = {
     MIN_ENCHANT_RANK = {
         { text = "Rank 1 or higher (Any Quality)", value = 1 },
@@ -45,22 +59,8 @@ local DROPDOWN_OPTIONS = {
         { text = "Below 50%", value = 50 },
         { text = "Below 75%", value = 75 }
     },
-    MIN_AVG_ITEM_LEVEL = {
-        { text = "Off", value = 0 },
-        { text = "240+", value = 240 },
-        { text = "250+", value = 250 },
-        { text = "260+", value = 260 },
-        { text = "270+", value = 270 },
-        { text = "280+", value = 280 }
-    },
-    MIN_EQUIPPED_ITEM_LEVEL = {
-        { text = "Off", value = 0 },
-        { text = "240+", value = 240 },
-        { text = "250+", value = 250 },
-        { text = "260+", value = 260 },
-        { text = "270+", value = 270 },
-        { text = "280+", value = 280 }
-    },
+    MIN_AVG_ITEM_LEVEL = ilvlDropdownOptions(),
+    MIN_EQUIPPED_ITEM_LEVEL = ilvlDropdownOptions(),
     MIN_EMBELLISHMENTS = {
         { text = "Off", value = 0 },
         { text = "At least 1", value = 1 },
@@ -84,7 +84,7 @@ local TOOLTIPS = {
         "|cffaaaaaaCurrent expansion uses rank-based enchants only, so this setting has no effect until material-quality slots are configured again.|r",
 
     MIN_AVG_ITEM_LEVEL = "Flag players whose average equipped item level is below this value.\n\n" ..
-        "Off by default. Midnight Spark-crafted gear is roughly 246-285; raise the gate when the season item band moves.",
+        "Off by default. Midnight Season 2 Spark-crafted gear is roughly 292-331; raise the gate when the season item band moves.",
 
     MIN_EQUIPPED_ITEM_LEVEL = "Flag individual equipped pieces below this item level.\n\n" ..
         "Off by default. Uses the item's effective (upgrade) level, not the base tooltip level.",

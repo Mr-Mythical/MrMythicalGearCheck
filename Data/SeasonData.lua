@@ -19,9 +19,9 @@ SeasonData.EXPANSION = 11
 --- Unique-Equipped: Embellished hard cap (game-enforced; we also warn if a check is enabled)
 SeasonData.MAX_EMBELLISHMENTS = 2
 
---- Suggested average-ilvl dropdown values. 0 = gate off.
---- Midnight crafted Spark gear is roughly 246-285; raise these when the season item band moves.
-SeasonData.ILVL_PRESETS = { 0, 240, 250, 260, 270, 280 }
+--- Suggested average/per-piece ilvl dropdown values. 0 = gate off.
+--- Midnight Season 2 Spark crafts: Champion 292-305, Hero 305-318, Myth 318-331.
+SeasonData.ILVL_PRESETS = { 0, 290, 300, 310, 320, 330 }
 
 --- LE_UNIT_STAT_* values from GetSpecializationInfo
 SeasonData.UNIT_STAT = {
