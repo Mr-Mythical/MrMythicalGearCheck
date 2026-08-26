@@ -84,10 +84,10 @@ local TOOLTIPS = {
         "|cffaaaaaaCurrent expansion uses rank-based enchants only, so this setting has no effect until material-quality slots are configured again.|r",
 
     MIN_AVG_ITEM_LEVEL = "Flag players whose average equipped item level is below this value.\n\n" ..
-        "Off by default. Midnight Season 2 Spark-crafted gear is roughly 292-331.",
+        "Midnight Season 2 Spark-crafted gear is roughly 292-331.",
 
     MIN_EQUIPPED_ITEM_LEVEL = "Flag individual equipped pieces below this item level.\n\n" ..
-        "Off by default. Uses the item's effective (upgrade) level, not the base tooltip level.",
+        "Uses the item's effective (upgrade) level, not the base tooltip level.",
 
     MIN_EMBELLISHMENTS = "Require a minimum number of Unique-Equipped: Embellished crafted pieces.\n\n" ..
         "The game cap is 2.",
