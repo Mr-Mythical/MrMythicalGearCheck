@@ -3,7 +3,7 @@
 ## Notes: Quickly inspect your group's gear to identify common preparation issues like missing enchants, empty gem sockets, and low durability items.
 ## Version: @project-version@
 ## Author: Braunerr
-## IconTexture: Interface\AddOns\MrMythicalGearCheck\Logo.tga
+## IconTexture: Interface/AddOns/MrMythicalGearCheck/Logo.tga
 ## X-Curse-Project-ID: 1361743
 ## X-Wago-ID: O67jJXN3
 ## SavedVariables: MrMythicalGearCheckDB
