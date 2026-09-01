@@ -26,30 +26,6 @@ Perform detailed inspections of player equipment to identify common issues:
 ### **Commands**
 - `/mrgc` or `/gearcheck` - Open the gear check interface
 
-## Data Source
-
-`enchantments.json` is the source of truth for gem/enchant data. The addon consumes a generated Lua mirror file at runtime:
-
-- Place `enchantments.json` at the repo root (array of entry objects, or `{ "entries": [...] }`)
-- Generate/update Lua data: `node scripts/generate_enchantments_lua.js`
-- Optional custom path: `node scripts/generate_enchantments_lua.js path/to/enchantments.json`
-- Generated file: `Data/EnchantmentsData.lua`
-
-Keep `enchantments.json` updated on patch/season changes, then regenerate before releasing.
-
-## Patch-day data updates
-
-When a new season or enchant list ships:
-
-1. Replace `enchantments.json` at the repo root (array of entries, or `{ "entries": [...] }`).
-2. Keep `CURRENT_EXPANSION` in `scripts/generate_enchantments_lua.js` in sync with `Data/SeasonData.lua` (`SeasonData.EXPANSION`). Enchantment tables for Midnight are still tagged as expansion **11**.
-3. Regenerate Lua: `node scripts/generate_enchantments_lua.js`
-4. Revisit `Data/SeasonData.lua`:
-   - Item-level presets (`ILVL_PRESETS`) if the Spark/vault band moved
-   - `MAX_EMBELLISHMENTS` if Unique-Equipped: Embellished changes
-   - `SPEC_PRIMARY_STAT` / named chest mappings (`ENCHANT_NAME_PRIMARY`) if new specs or named enchants appear
-5. Revisit `Data/ConfigData.lua` `ENCHANTABLE_SLOTS` if Blizzard adds or removes slot enchants.
-
 ### Midnight enchant slots (Interface 120100)
 
 **Checked:** Head, Shoulder, Chest, Legs, Feet, Rings, Main Hand, Off Hand.
