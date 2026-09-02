@@ -26,16 +26,6 @@ Perform detailed inspections of player equipment to identify common issues:
 ### **Commands**
 - `/mrgc` or `/gearcheck` - Open the gear check interface
 
-### Midnight enchant slots (Interface 120100)
-
-**Checked:** Head, Shoulder, Chest, Legs, Feet, Rings, Main Hand, Off Hand.
-
-**Not enchanted this expansion:** Neck, Wrist, Hands, Belt, Cloak, Trinkets.
-
-**Class exceptions:** Death Knights need a weapon **rune** (not a generic weapon enchant). Shields and held-in-off-hand items skip the off-hand enchant check.
-
-Embellishment and item-level gates default **off** so groups are not spammed; enable them in Settings → Mr. Mythical → Gear Check → Season Rules.
-
 ## Download
 
 Get the latest version from your preferred addon manager:
