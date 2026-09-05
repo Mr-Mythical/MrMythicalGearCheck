@@ -60,7 +60,6 @@ local function ensureCharacterReportFrame()
         text:SetJustifyH("LEFT")
         text:SetJustifyV("TOP")
         text:SetWidth(330)
-        -- Use a slightly larger non-default UI font for cleaner readability.
         text:SetFont("Fonts\\ARIALN.TTF", 13, "")
         text:SetText("Loading...")
 
